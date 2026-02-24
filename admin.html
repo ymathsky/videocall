@@ -72,6 +72,9 @@
         <button class="sidebar-btn" data-section="users-section">
             <i class="fas fa-users"></i> Users
         </button>
+        <button class="sidebar-btn" data-section="analytics-section">
+            <i class="fas fa-chart-bar"></i> Analytics
+        </button>
 
         <div class="sidebar-section-label">Quick Links</div>
         <a href="/" class="sidebar-btn" style="text-decoration:none;display:flex;align-items:center;gap:10px;color:var(--text-2);">
@@ -368,6 +371,61 @@
             <div id="users-grid" class="users-grid"></div>
         </div>
 
+        <!-- Analytics section -->
+        <div id="analytics-section" class="admin-section">
+            <div class="admin-topbar">
+                <div class="admin-topbar-title">
+                    <h2>Analytics</h2>
+                    <span>Usage statistics from recorded consultations</span>
+                </div>
+                <div class="admin-topbar-actions">
+                    <button class="sidebar-btn" onclick="loadAnalytics()" style="gap:6px;">
+                        <i class="fas fa-arrows-rotate"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI Row -->
+            <div class="stat-row" id="analytics-kpi-row">
+                <div class="stat-card">
+                    <div class="stat-icon teal"><i class="fas fa-calendar-check"></i></div>
+                    <div class="stat-info"><strong id="an-total">—</strong><span>Total Calls</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green"><i class="fas fa-clock"></i></div>
+                    <div class="stat-info"><strong id="an-avgdur">—</strong><span>Avg Duration</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon amber"><i class="fas fa-check-circle"></i></div>
+                    <div class="stat-info"><strong id="an-complete">—</strong><span>Completion Rate</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background:rgba(124,58,237,.12);color:#a78bfa;"><i class="fas fa-user-check"></i></div>
+                    <div class="stat-info"><strong id="an-returning">—</strong><span>Returning Patients</span></div>
+                </div>
+            </div>
+
+            <!-- Charts grid -->
+            <div class="analytics-charts-grid">
+                <div class="panel-card">
+                    <div class="panel-card-header"><h3><i class="fas fa-calendar-week" style="color:var(--teal);margin-right:8px;"></i>Calls per Week <span class="analytics-sub">(last 8 weeks)</span></h3></div>
+                    <div class="analytics-canvas-wrap"><canvas id="chart-weekly" class="analytics-canvas"></canvas><div id="chart-weekly-empty" class="analytics-empty" style="display:none;">No data yet</div></div>
+                </div>
+                <div class="panel-card">
+                    <div class="panel-card-header"><h3><i class="fas fa-layer-group" style="color:#a78bfa;margin-right:8px;"></i>Duration Distribution</h3></div>
+                    <div class="analytics-canvas-wrap"><canvas id="chart-duration" class="analytics-canvas"></canvas><div id="chart-duration-empty" class="analytics-empty" style="display:none;">No data yet</div></div>
+                </div>
+                <div class="panel-card" style="grid-column:1 / -1;">
+                    <div class="panel-card-header"><h3><i class="fas fa-clock" style="color:var(--amber,#f59e0b);margin-right:8px;"></i>Busiest Hours of Day</h3></div>
+                    <div class="analytics-canvas-wrap" style="height:160px;"><canvas id="chart-hours" class="analytics-canvas"></canvas><div id="chart-hours-empty" class="analytics-empty" style="display:none;">No data yet</div></div>
+                </div>
+                <div class="panel-card" style="grid-column:1 / -1;">
+                    <div class="panel-card-header"><h3><i class="fas fa-chart-area" style="color:var(--green);margin-right:8px;"></i>Daily Call Volume <span class="analytics-sub">(last 30 days)</span></h3></div>
+                    <div class="analytics-canvas-wrap" style="height:160px;"><canvas id="chart-daily" class="analytics-canvas"></canvas><div id="chart-daily-empty" class="analytics-empty" style="display:none;">No data yet</div></div>
+                </div>
+            </div>
+        </div>
+
         <footer class="site-footer" style="margin-top:32px;">
             <span class="footer-company dynamic-company-name">TeleHealth Connect</span>
             <span class="footer-sep">&middot;</span>
@@ -480,7 +538,8 @@
         const targetSec = document.getElementById(sectionId);
         if (targetBtn) targetBtn.classList.add('active');
         if (targetSec) targetSec.classList.add('active');
-        if (sectionId === 'users-section') loadUsers();
+        if (sectionId === 'users-section')     loadUsers();
+        if (sectionId === 'analytics-section') loadAnalytics();
     }
 
     /* â”€â”€â”€ Auth â”€â”€â”€ */
@@ -1017,6 +1076,201 @@
 
     /* ─── Invite Patient modal JS ─── */
     let _inviteRoom = '';
+
+    /* ─── Analytics ─── */
+    function fmtSec(s) {
+        if (!s) return '—';
+        const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+        return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+    }
+
+    async function loadAnalytics() {
+        try {
+            const data = await (await apiFetch('/api/analytics')).json();
+
+            // KPIs
+            document.getElementById('an-total').textContent    = data.totalMeetings?.count ?? '—';
+            document.getElementById('an-avgdur').textContent   = fmtSec(+data.avgDuration?.avg) || '—';
+            const total   = data.totalMeetings?.count || 0;
+            const complet = data.completedMeetings?.count || 0;
+            document.getElementById('an-complete').textContent = total ? Math.round(complet/total*100) + '%' : '—';
+            const retPct = (data.totalPatients?.count > 0)
+                ? Math.round((data.returningPatients?.count || 0) / data.totalPatients.count * 100) + '%'
+                : '—';
+            document.getElementById('an-returning').textContent = retPct;
+
+            // Chart colours
+            const C_TEAL   = '#14b8a6';
+            const C_PURPLE = '#a78bfa';
+            const C_AMBER  = '#f59e0b';
+            const C_GREEN  = '#22c55e';
+            const C_BG     = '#1e293b';
+            const C_FG     = '#94a3b8';
+
+            // ─── Helper: draw a vertical bar chart ───────────────────────────────
+            function barChart(canvasId, emptyId, labels, values, color) {
+                const canvas = document.getElementById(canvasId);
+                const empty  = document.getElementById(emptyId);
+                if (!canvas) return;
+                const maxVal = Math.max(...values, 1);
+                const W = canvas.offsetWidth || 600;
+                const H = canvas.offsetHeight || 200;
+                canvas.width  = W * devicePixelRatio;
+                canvas.height = H * devicePixelRatio;
+                const ctx = canvas.getContext('2d');
+                ctx.scale(devicePixelRatio, devicePixelRatio);
+
+                if (!values.some(v => v > 0)) { canvas.style.display='none'; if(empty) empty.style.display='flex'; return; }
+                canvas.style.display='block'; if(empty) empty.style.display='none';
+
+                const PAD = { top: 20, right: 10, bottom: 36, left: 36 };
+                const cW = W - PAD.left - PAD.right;
+                const cH = H - PAD.top  - PAD.bottom;
+                const barW = Math.max(4, Math.floor(cW / labels.length) - 4);
+
+                // Y gridlines
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.lineWidth = 1;
+                [0.25,0.5,0.75,1].forEach(f => {
+                    const y = PAD.top + cH * (1 - f);
+                    ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(W - PAD.right, y); ctx.stroke();
+                    ctx.fillStyle = C_FG; ctx.font = `10px Inter,sans-serif`; ctx.textAlign = 'right';
+                    ctx.fillText(Math.round(maxVal * f), PAD.left - 4, y + 3);
+                });
+
+                // Bars
+                labels.forEach((lbl, i) => {
+                    const x  = PAD.left + i * (cW / labels.length) + (cW/labels.length - barW) / 2;
+                    const bh = Math.max(2, (values[i] / maxVal) * cH);
+                    const y  = PAD.top + cH - bh;
+
+                    const grad = ctx.createLinearGradient(0, y, 0, y + bh);
+                    grad.addColorStop(0, color);
+                    grad.addColorStop(1, color + '55');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    const r = Math.min(4, barW/2);
+                    ctx.roundRect(x, y, barW, bh, [r, r, 0, 0]);
+                    ctx.fill();
+
+                    // Value label above bar
+                    if (values[i] > 0) {
+                        ctx.fillStyle = color; ctx.font = `bold 10px Inter,sans-serif`; ctx.textAlign = 'center';
+                        ctx.fillText(values[i], x + barW / 2, y - 4);
+                    }
+
+                    // X label
+                    ctx.fillStyle = C_FG; ctx.font = `10px Inter,sans-serif`; ctx.textAlign = 'center';
+                    ctx.fillText(lbl, x + barW / 2, H - PAD.bottom + 16);
+                });
+            }
+
+            // ─── Helper: area/line chart ─────────────────────────────────────────
+            function areaChart(canvasId, emptyId, labels, values, color) {
+                const canvas = document.getElementById(canvasId);
+                const empty  = document.getElementById(emptyId);
+                if (!canvas) return;
+                const maxVal = Math.max(...values, 1);
+                const W = canvas.offsetWidth || 600;
+                const H = canvas.offsetHeight || 160;
+                canvas.width  = W * devicePixelRatio;
+                canvas.height = H * devicePixelRatio;
+                const ctx = canvas.getContext('2d');
+                ctx.scale(devicePixelRatio, devicePixelRatio);
+
+                if (!values.some(v => v > 0)) { canvas.style.display='none'; if(empty) empty.style.display='flex'; return; }
+                canvas.style.display='block'; if(empty) empty.style.display='none';
+
+                const PAD = { top: 16, right: 10, bottom: 28, left: 36 };
+                const cW = W - PAD.left - PAD.right;
+                const cH = H - PAD.top  - PAD.bottom;
+
+                const points = values.map((v, i) => ({
+                    x: PAD.left + (i / Math.max(labels.length - 1, 1)) * cW,
+                    y: PAD.top  + cH * (1 - v / maxVal)
+                }));
+
+                // Fill area
+                const grad = ctx.createLinearGradient(0, PAD.top, 0, PAD.top + cH);
+                grad.addColorStop(0, color + '44');
+                grad.addColorStop(1, color + '00');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, PAD.top + cH);
+                points.forEach(p => ctx.lineTo(p.x, p.y));
+                ctx.lineTo(points[points.length-1].x, PAD.top + cH);
+                ctx.closePath(); ctx.fill();
+
+                // Line
+                ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+                ctx.beginPath();
+                points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+                ctx.stroke();
+
+                // Dots
+                points.forEach(p => {
+                    ctx.fillStyle = color;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+                });
+
+                // X labels (show every Nth)
+                const step = Math.max(1, Math.floor(labels.length / 8));
+                ctx.fillStyle = C_FG; ctx.font = `10px Inter,sans-serif`; ctx.textAlign = 'center';
+                labels.forEach((l, i) => {
+                    if (i % step === 0 || i === labels.length - 1)
+                        ctx.fillText(l, points[i].x, H - PAD.bottom + 14);
+                });
+            }
+
+            // ─── Calls per week ───────────────────────────────────────────────────
+            (() => {
+                const weeks = data.perWeek || [];
+                // Build 8-week scaffold
+                const scaffold = [];
+                for (let i = 7; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i * 7);
+                    const yr  = d.getFullYear();
+                    const wk  = String(getISOWeek(d)).padStart(2,'0');
+                    scaffold.push({ key: `${yr}-${wk}`, label: `W${wk}` });
+                }
+                const map = Object.fromEntries(weeks.map(r => [r.week, r.count]));
+                barChart('chart-weekly','chart-weekly-empty', scaffold.map(s=>s.label), scaffold.map(s=>map[s.key]||0), C_TEAL);
+            })();
+
+            // ─── Duration buckets ─────────────────────────────────────────────────
+            (() => {
+                const ORDER = ['< 2 min','2-5 min','5-10 min','10-30 min','30+ min'];
+                const map   = Object.fromEntries((data.durationBuckets||[]).map(r=>[r.bucket,r.count]));
+                barChart('chart-duration','chart-duration-empty', ORDER, ORDER.map(k=>map[k]||0), C_PURPLE);
+            })();
+
+            // ─── Busiest hours ────────────────────────────────────────────────────
+            (() => {
+                const labels = Array.from({length:24}, (_,i) => i % 6===0 ? `${i}:00` : '');
+                const map    = Object.fromEntries((data.perHour||[]).map(r=>[r.hour,r.count]));
+                barChart('chart-hours','chart-hours-empty', labels, Array.from({length:24},(_,i)=>map[i]||0), C_AMBER);
+            })();
+
+            // ─── Daily volume ─────────────────────────────────────────────────────
+            (() => {
+                const rows   = data.perDay || [];
+                if (!rows.length) { document.getElementById('chart-daily').style.display='none'; document.getElementById('chart-daily-empty').style.display='flex'; return; }
+                const labels = rows.map(r => r.day.slice(5));   // MM-DD
+                const values = rows.map(r => r.count);
+                areaChart('chart-daily','chart-daily-empty', labels, values, C_GREEN);
+            })();
+
+        } catch(e) { console.error('analytics:', e); }
+    }
+
+    function getISOWeek(d) {
+        const date = new Date(d);
+        date.setHours(0,0,0,0);
+        date.setDate(date.getDate() + 4 - (date.getDay() || 7));
+        const y = new Date(date.getFullYear(), 0, 1);
+        return Math.ceil((((date - y) / 86400000) + 1) / 7);
+    }
 
     window.openInviteModal = function(roomName) {
         _inviteRoom = roomName;

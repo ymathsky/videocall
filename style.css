@@ -1319,3 +1319,41 @@ select.form-select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(
         border-right: none;
     }
 }
+
+/* ─── Recording pulse animation ─── */
+@keyframes recPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: .4; transform: scale(1.3); }
+}
+
+/* ─── Analytics Dashboard ─── */
+.analytics-charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 16px;
+}
+.analytics-canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 200px;
+}
+.analytics-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+.analytics-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: var(--text-3, #555);
+}
+.analytics-sub {
+    font-weight: 400;
+    font-size: 0.8rem;
+    color: var(--text-2);
+    margin-left: 4px;
+}

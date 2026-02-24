@@ -794,6 +794,8 @@ function startCallSession() {
         document.getElementById('end-meeting-button').style.display = '';
         document.getElementById('notes-toggle-button').style.display = '';
         document.getElementById('raise-hand-button').style.display = 'none';
+        const recBtn = document.getElementById('record-button');
+        if (recBtn) recBtn.style.display = '';
         loadNotesFromServer();
     }
 }
@@ -1030,4 +1032,168 @@ async function loadNotesFromServer() {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', scheduleNotesSave);
 });
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FEATURE: Session Recording (host-only, saved locally as .webm)
+   ═══════════════════════════════════════════════════════════════════════ */
+const recordButton = document.getElementById('record-button');
+let mediaRecorder    = null;
+let recChunks        = [];
+let recStartTime     = null;
+let recTimerInterval = null;
+let recAudioCtx      = null;
+let recAnimFrame     = null;
+
+// Wire up consent checkbox enabling start button
+const recConsentCheck = document.getElementById('rec-consent-check');
+if (recConsentCheck) {
+    recConsentCheck.addEventListener('change', function() {
+        const startBtn = document.getElementById('rec-consent-start-btn');
+        if (startBtn) {
+            startBtn.disabled = !this.checked;
+            startBtn.style.opacity = this.checked ? '1' : '.45';
+        }
+    });
+}
+
+// Record button click — show consent modal if not recording, stop if recording
+if (recordButton) {
+    recordButton.addEventListener('click', () => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            stopRecording();
+        } else {
+            const check = document.getElementById('rec-consent-check');
+            const startBtn = document.getElementById('rec-consent-start-btn');
+            if (check) check.checked = false;
+            if (startBtn) { startBtn.disabled = true; startBtn.style.opacity = '.45'; }
+            document.getElementById('rec-consent-modal').style.display = 'flex';
+        }
+    });
+}
+
+// Start recording from consent modal
+const recConsentStartBtn = document.getElementById('rec-consent-start-btn');
+if (recConsentStartBtn) {
+    recConsentStartBtn.addEventListener('click', () => {
+        document.getElementById('rec-consent-modal').style.display = 'none';
+        startRecording();
+    });
+}
+
+async function startRecording() {
+    try {
+        // ── Canvas composite for video ──────────────────────────────────────
+        const recCanvas = document.createElement('canvas');
+        recCanvas.width  = 1280;
+        recCanvas.height = 720;
+        const rCtx = recCanvas.getContext('2d');
+
+        function drawRecFrame() {
+            recAnimFrame = requestAnimationFrame(drawRecFrame);
+            rCtx.fillStyle = '#0f0f1a';
+            rCtx.fillRect(0, 0, 1280, 720);
+            const videos = Array.from(document.querySelectorAll('#video-grid video'));
+            if (!videos.length) return;
+            const cols = Math.ceil(Math.sqrt(videos.length));
+            const rows = Math.ceil(videos.length / cols);
+            const tileW = 1280 / cols;
+            const tileH = 720  / rows;
+            videos.forEach((v, i) => {
+                const col = i % cols, row = Math.floor(i / cols);
+                try { rCtx.drawImage(v, col * tileW, row * tileH, tileW, tileH); } catch(e) {}
+            });
+        }
+        drawRecFrame();
+
+        // ── Web Audio mixer ─────────────────────────────────────────────────
+        recAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const dest  = recAudioCtx.createMediaStreamDestination();
+
+        // Add local mic
+        if (typeof localStream !== 'undefined' && localStream) {
+            const localSrc = recAudioCtx.createMediaStreamSource(localStream);
+            localSrc.connect(dest);
+        }
+        // Add all remote peer audio
+        if (typeof peers !== 'undefined') {
+            Object.values(peers).forEach(pc => {
+                pc.getReceivers().forEach(r => {
+                    if (r.track && r.track.kind === 'audio') {
+                        try {
+                            const peerStream = new MediaStream([r.track]);
+                            const src = recAudioCtx.createMediaStreamSource(peerStream);
+                            src.connect(dest);
+                        } catch(e) {}
+                    }
+                });
+            });
+        }
+
+        // ── Composite stream ────────────────────────────────────────────────
+        const videoTrack = recCanvas.captureStream(30).getVideoTracks()[0];
+        const audioTrack = dest.stream.getAudioTracks()[0];
+        const tracks = audioTrack ? [videoTrack, audioTrack] : [videoTrack];
+        const recStream = new MediaStream(tracks);
+
+        // ── MediaRecorder ───────────────────────────────────────────────────
+        const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+            .find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+
+        mediaRecorder = new MediaRecorder(recStream, { mimeType, videoBitsPerSecond: 2_500_000 });
+        recChunks = [];
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recChunks.push(e.data); };
+        mediaRecorder.onstop = () => downloadRecording(mimeType);
+        mediaRecorder.start(1000); // collect chunks every 1s
+
+        // ── UI ──────────────────────────────────────────────────────────────
+        recStartTime = Date.now();
+        const indicator = document.getElementById('recording-indicator');
+        if (indicator) indicator.style.display = 'flex';
+        if (recordButton) {
+            recordButton.classList.add('active');
+            const icon = recordButton.querySelector('i');
+            if (icon) { icon.classList.remove('fa-circle'); icon.classList.add('fa-stop'); icon.style.color = ''; }
+            recordButton.title = 'Stop Recording';
+        }
+
+        recTimerInterval = setInterval(() => {
+            const s = Math.floor((Date.now() - recStartTime) / 1000);
+            const el = document.getElementById('rec-timer');
+            if (el) el.textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+        }, 1000);
+
+        showToast('Recording started');
+    } catch(err) {
+        console.error('Recording error:', err);
+        showToast('Could not start recording: ' + (err.message || err));
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    if (recAnimFrame) { cancelAnimationFrame(recAnimFrame); recAnimFrame = null; }
+    if (recAudioCtx)  { recAudioCtx.close().catch(()=>{}); recAudioCtx = null; }
+    if (recTimerInterval) { clearInterval(recTimerInterval); recTimerInterval = null; }
+    const indicator = document.getElementById('recording-indicator');
+    if (indicator) indicator.style.display = 'none';
+    if (recordButton) {
+        recordButton.classList.remove('active');
+        const icon = recordButton.querySelector('i');
+        if (icon) { icon.classList.remove('fa-stop'); icon.classList.add('fa-circle'); icon.style.color = '#ef4444'; }
+        recordButton.title = 'Record Session (Host Only)';
+    }
+    showToast('Recording stopped — preparing download…');
+}
+
+function downloadRecording(mimeType) {
+    const ext  = mimeType.includes('webm') ? 'webm' : 'mp4';
+    const blob = new Blob(recChunks, { type: mimeType });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `session-${typeof roomName !== 'undefined' && roomName ? roomName.substring(0,8) : 'recording'}-${new Date().toISOString().replace(/[:.]/g,'-')}.${ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    recChunks = [];
+}
 

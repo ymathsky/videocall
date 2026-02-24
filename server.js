@@ -273,6 +273,52 @@ app.get('/api/meetings', requireAdmin, (req, res) => {
   });
 });
 
+// ── Analytics ──────────────────────────────────────────────────────────────
+app.get('/api/analytics', requireAdmin, (req, res) => {
+  const q = {
+    totalMeetings:     `SELECT COUNT(*) AS count FROM meetings`,
+    completedMeetings: `SELECT COUNT(*) AS count FROM meetings WHERE duration_seconds IS NOT NULL AND duration_seconds > 0`,
+    avgDuration:       `SELECT ROUND(AVG(duration_seconds)) AS avg FROM meetings WHERE duration_seconds > 0`,
+    totalDuration:     `SELECT SUM(duration_seconds) AS total FROM meetings WHERE duration_seconds IS NOT NULL`,
+    totalPatients:     `SELECT COUNT(DISTINCT LOWER(TRIM(email))) AS count FROM consents WHERE email != ''`,
+    returningPatients: `SELECT COUNT(*) AS count FROM (SELECT email FROM consents WHERE email != '' GROUP BY LOWER(TRIM(email)) HAVING COUNT(*) > 1)`,
+    perWeek: `
+      SELECT strftime('%Y-%W', created_at) AS week, COUNT(*) AS count
+      FROM meetings WHERE created_at >= datetime('now','-56 days')
+      GROUP BY week ORDER BY week ASC`,
+    perHour: `
+      SELECT CAST(strftime('%H', started_at) AS INTEGER) AS hour, COUNT(*) AS count
+      FROM meetings WHERE started_at IS NOT NULL
+      GROUP BY hour ORDER BY hour ASC`,
+    perDay: `
+      SELECT DATE(created_at) AS day, COUNT(*) AS count
+      FROM meetings WHERE created_at >= datetime('now','-30 days')
+      GROUP BY day ORDER BY day ASC`,
+    durationBuckets: `
+      SELECT
+        CASE
+          WHEN duration_seconds < 120  THEN '< 2 min'
+          WHEN duration_seconds < 300  THEN '2-5 min'
+          WHEN duration_seconds < 600  THEN '5-10 min'
+          WHEN duration_seconds < 1800 THEN '10-30 min'
+          ELSE '30+ min'
+        END AS bucket,
+        COUNT(*) AS count
+      FROM meetings WHERE duration_seconds > 0
+      GROUP BY bucket`
+  };
+  const result = {};
+  const entries = Object.entries(q);
+  let done = 0;
+  entries.forEach(([key, sql]) => {
+    const multi = ['perWeek','perHour','perDay','durationBuckets'].includes(key);
+    db[multi ? 'all' : 'get'](sql, [], (err, row) => {
+      result[key] = err ? (multi ? [] : {}) : row;
+      if (++done === entries.length) res.json(result);
+    });
+  });
+});
+
 // SOAP Notes — per room
 app.get('/api/meetings/:roomName/notes', requireAdmin, (req, res) => {
   db.get(
