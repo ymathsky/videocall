@@ -982,6 +982,77 @@ select.form-select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(
     .settings-grid { grid-template-columns: 1fr; }
 }
 
+/* ──────────────────────────────────────
+   MOBILE VIDEO CALL LAYOUT
+────────────────────────────────────── */
+@media (max-width: 768px) {
+    /* Full viewport video room */
+    .video-container {
+        padding: 8px 8px 100px 8px;
+        justify-content: flex-start;
+    }
+
+    /* Stack videos vertically, fill width */
+    .video-grid {
+        flex-direction: column;
+        gap: 8px;
+        height: auto;
+        width: 100%;
+        align-items: stretch;
+    }
+
+    /* Each video takes full width */
+    .video-wrapper {
+        width: 100% !important;
+        max-width: 100%;
+        aspect-ratio: 16/9;
+        border-radius: 12px;
+    }
+
+    /* Compact room header */
+    .room-header {
+        top: 10px; left: 10px; right: 10px;
+        padding: 6px 12px;
+        justify-content: space-between;
+    }
+    .room-header h2 { font-size: 0.78rem; }
+    .meeting-timer { font-size: 10px; padding: 2px 7px; }
+
+    /* Controls bar — full width, tighter */
+    .controls-bar {
+        bottom: 16px;
+        left: 12px; right: 12px;
+        transform: none;
+        width: auto;
+        padding: 10px 14px;
+        gap: 8px;
+        justify-content: space-around;
+        border-radius: 20px;
+    }
+    .control-btn {
+        width: 44px; height: 44px;
+        font-size: 15px;
+    }
+
+    /* Name tag smaller */
+    .name-tag {
+        font-size: 11px;
+        padding: 3px 9px;
+        bottom: 10px; left: 10px;
+    }
+
+    /* Chat full screen on mobile */
+    #chat-container {
+        width: 100% !important;
+        right: -100% !important;
+        bottom: 0; top: 0;
+        border-radius: 0;
+    }
+    #chat-container.open {
+        right: 0 !important;
+    }
+}
+
 /* ─── AI Meeting Summary ─── */
 .meeting-item-card { flex-direction: column; align-items: stretch !important; }
 .meeting-summary-toggle {
