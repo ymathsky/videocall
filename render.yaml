@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: videocall
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    disk:
+      name: videocall-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /data/videocall.db
+      - key: GEMINI_API_KEY
+        sync: false        # set manually in Render dashboard
+      - key: ADMIN_USERNAME
+        sync: false        # set manually in Render dashboard
+      - key: ADMIN_PASSWORD
+        sync: false        # set manually in Render dashboard

@@ -1,0 +1,657 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeleHealth Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+
+<!-- â”€â”€â”€ LOGIN â”€â”€â”€ -->
+<div id="login-shell" class="login-shell">
+    <div class="login-card">
+        <div class="login-card-icon"><i class="fas fa-shield-halved"></i></div>
+        <h2>Admin Portal</h2>
+        <p class="sub">Sign in to manage consultations and consent records</p>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input id="username" type="text" placeholder="admin" required autocomplete="username" />
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input id="password" type="password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" required autocomplete="current-password" />
+            </div>
+            <div class="error-text" id="login-error"></div>
+            <button type="submit" class="btn-primary" style="margin-top:8px;">
+                <i class="fas fa-right-to-bracket"></i> Sign In
+            </button>
+        </form>
+
+        <p class="login-hint">Default: <code style="background:var(--bg-elevated);padding:2px 6px;border-radius:4px;">admin</code> / <code style="background:var(--bg-elevated);padding:2px 6px;border-radius:4px;">admin123</code><br>Set <code>ADMIN_USERNAME</code> &amp; <code>ADMIN_PASSWORD</code> env vars to change.</p>
+    </div>
+</div>
+
+<!-- â”€â”€â”€ DASHBOARD â”€â”€â”€ -->
+<div id="admin-shell" class="admin-shell">
+
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+        <div class="sidebar-logo">
+            <div class="sidebar-logo-icon"><i class="fas fa-heartbeat"></i></div>
+            <div class="sidebar-logo-text">
+                <strong class="dynamic-company-name">TeleHealth Connect</strong>
+                <span>Admin Portal</span>
+            </div>
+        </div>
+
+        <div class="sidebar-section-label">Navigation</div>
+
+        <button class="sidebar-btn active" data-section="overview-section">
+            <i class="fas fa-chart-line"></i> Overview
+        </button>
+        <button class="sidebar-btn" data-section="create-section">
+            <i class="fas fa-plus-circle"></i> New Meeting
+        </button>
+        <button class="sidebar-btn" data-section="meetings-section">
+            <i class="fas fa-calendar-check"></i> Meetings
+        </button>
+        <button class="sidebar-btn" data-section="consents-section">
+            <i class="fas fa-file-signature"></i> Consents
+        </button>
+        <button class="sidebar-btn" data-section="settings-section">
+            <i class="fas fa-gear"></i> Settings
+        </button>
+
+        <div class="sidebar-section-label">Quick Links</div>
+        <a href="/" class="sidebar-btn" style="text-decoration:none;display:flex;align-items:center;gap:10px;color:var(--text-2);">
+            <i class="fas fa-video"></i> Open App
+        </a>
+        <a href="/consent" target="_blank" class="sidebar-btn" style="text-decoration:none;display:flex;align-items:center;gap:10px;color:var(--text-2);">
+            <i class="fas fa-external-link-alt"></i> Consent Form
+        </a>
+
+        <div class="sidebar-spacer"></div>
+        <button id="logout-btn" class="sidebar-logout">
+            <i class="fas fa-arrow-right-from-bracket"></i> Logout
+        </button>
+    </aside>
+
+    <!-- Main content -->
+    <main class="admin-main">
+
+        <!-- Overview section -->
+        <div id="overview-section" class="admin-section active">
+            <div class="admin-topbar">
+                <div class="admin-topbar-title">
+                    <h2>Overview</h2>
+                    <span>Welcome back, Admin</span>
+                </div>
+                <div class="admin-topbar-actions">
+                    <button class="sidebar-btn" onclick="switchSection('create-section')" style="background:var(--teal);color:#fff;border-color:transparent;gap:6px;">
+                        <i class="fas fa-plus"></i> New Meeting
+                    </button>
+                </div>
+            </div>
+
+            <div class="stat-row">
+                <div class="stat-card">
+                    <div class="stat-icon teal"><i class="fas fa-calendar-check"></i></div>
+                    <div class="stat-info">
+                        <strong id="stat-meetings">â€”</strong>
+                        <span>Total Meetings</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green"><i class="fas fa-file-signature"></i></div>
+                    <div class="stat-info">
+                        <strong id="stat-consents">â€”</strong>
+                        <span>Consent Forms</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon amber"><i class="fas fa-clock"></i></div>
+                    <div class="stat-info">
+                        <strong id="stat-today">â€”</strong>
+                        <span>Today's Meetings</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-card">
+                <div class="panel-card-header">
+                    <h3><i class="fas fa-history" style="color:var(--teal);margin-right:8px;"></i>Recent Meetings</h3>
+                </div>
+                <div id="overview-meetings-list" class="data-list"></div>
+            </div>
+        </div>
+
+        <!-- Create Meeting section -->
+        <div id="create-section" class="admin-section">
+            <div class="admin-topbar">
+                <div class="admin-topbar-title">
+                    <h2>Create Meeting</h2>
+                    <span>Generate a new secure consultation link</span>
+                </div>
+            </div>
+
+            <div class="panel-card" style="max-width:600px;">
+                <div class="panel-card-header">
+                    <h3><i class="fas fa-wand-magic-sparkles" style="color:var(--teal);margin-right:8px;"></i>New Consultation Room</h3>
+                </div>
+                <div class="form-group">
+                    <label>Meeting Topic / Room Name</label>
+                    <input type="text" id="room-name" placeholder="e.g. Follow-up Consultation â€” Dr. Smith" />
+                </div>                <div class="form-group">
+                    <label>Meeting Password <span style="color:var(--text-3);font-weight:400;">(auto-generated if left blank)</span></label>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="text" id="room-password" placeholder="Leave blank to auto-generate" style="flex:1;font-family:monospace;" />
+                        <button type="button" id="gen-pwd-btn" class="secondary-btn" style="padding:10px 13px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-2);font-size:12px;white-space:nowrap;flex-shrink:0;">
+                            <i class="fas fa-rotate"></i> Generate
+                        </button>
+                    </div>
+                    <div style="font-size:11px;color:var(--text-3);margin-top:4px;"><i class="fas fa-lock" style="margin-right:4px;"></i>Password is embedded in the patient link automatically.</div>
+                </div>                <button id="create-btn" class="btn-primary" style="width:100%;justify-content:center;padding:12px;">
+                    <i class="fas fa-link"></i> Generate Meeting Link
+                </button>
+
+                <div id="result-area" style="display:none;">
+                    <div style="display:flex;flex-direction:column;gap:14px;">
+                        <!-- Patient link (goes through consent first) -->
+                        <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;">
+                            <div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--teal);margin-bottom:6px;"><i class="fas fa-user-injured" style="margin-right:6px;"></i>PATIENT LINK <span style="color:var(--text-3);font-weight:400;">(includes consent form)</span></div>
+                            <div id="patient-link" style="font-size:13px;color:var(--text-2);word-break:break-all;margin-bottom:10px;"></div>
+                            <div class="inline-actions">
+                                <button id="copy-btn" class="secondary-btn" style="padding:8px 13px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);font-size:12px;gap:6px;">
+                                    <i class="fas fa-copy"></i> Copy Patient Link
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Meeting password — share separately with the patient -->
+                        <div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:var(--r-md);padding:14px 16px;">
+                            <div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--amber,#f59e0b);margin-bottom:6px;"><i class="fas fa-key" style="margin-right:6px;"></i>MEETING PASSWORD <span style="color:var(--text-3);font-weight:400;">(share this with the patient separately)</span></div>
+                            <div id="result-password" style="font-size:18px;font-weight:700;letter-spacing:.15em;color:var(--text);font-family:monospace;margin-bottom:10px;"></div>
+                            <div class="inline-actions">
+                                <button id="copy-pwd-btn" class="secondary-btn" style="padding:8px 13px;border-radius:var(--r-md);border:1px solid rgba(245,158,11,.35);background:var(--bg);color:var(--text-2);font-size:12px;gap:6px;">
+                                    <i class="fas fa-copy"></i> Copy Password
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Host direct join -->
+                        <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;">
+                            <div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--green);margin-bottom:6px;"><i class="fas fa-user-shield" style="margin-right:6px;"></i>HOST LINK <span style="color:var(--text-3);font-weight:400;">(bypasses consent — for providers only)</span></div>
+                            <div id="host-link" style="font-size:13px;color:var(--text-2);word-break:break-all;margin-bottom:10px;"></div>
+                            <div class="inline-actions">
+                                <button id="copy-host-btn" class="secondary-btn" style="padding:8px 13px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);font-size:12px;gap:6px;">
+                                    <i class="fas fa-copy"></i> Copy Host Link
+                                </button>
+                                <button id="join-btn" class="btn-primary" style="padding:8px 13px;font-size:13px;gap:6px;">
+                                    <i class="fas fa-external-link-alt"></i> Join Now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-card" style="max-width:600px;margin-top:0;">
+                <div class="panel-card-header">
+                    <h3><i class="fas fa-file-signature" style="color:var(--teal);margin-right:8px;"></i>Patient Consent Form</h3>
+                </div>
+                <p class="muted" style="margin-bottom:14px;">Send this link to patients before their consultation to collect their digital consent signature.</p>
+                <div class="inline-actions">
+                    <a href="/consent" target="_blank" class="secondary-btn" style="text-decoration:none;padding:9px 14px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-2);font-size:13px;gap:6px;display:inline-flex;align-items:center;">
+                        <i class="fas fa-eye"></i> Preview Form
+                    </a>
+                    <button onclick="copyConsentLink()" class="secondary-btn" style="padding:9px 14px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-2);font-size:13px;gap:6px;">
+                        <i class="fas fa-copy"></i> Copy Link
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Meetings List section -->
+        <div id="meetings-section" class="admin-section">
+            <div class="admin-topbar">
+                <div class="admin-topbar-title">
+                    <h2>All Meetings</h2>
+                    <span>History of all created meeting rooms</span>
+                </div>
+            </div>
+            <div class="panel-card">
+                <div id="meetings-list" class="data-list"></div>
+            </div>
+        </div>
+
+        <!-- Consents section -->
+        <div id="consents-section" class="admin-section">
+            <div class="admin-topbar">
+                <div class="admin-topbar-title">
+                    <h2>Consent Forms</h2>
+                    <span>All patient consent submissions</span>
+                </div>
+            </div>
+            <div class="panel-card">
+                <div id="consents-list" class="data-list"></div>
+            </div>
+        </div>
+
+        <!-- Settings section -->
+        <div id="settings-section" class="admin-section">
+            <div class="admin-topbar">
+                <div class="admin-topbar-title">
+                    <h2>Settings</h2>
+                    <span>Customize your organization's information</span>
+                </div>
+            </div>
+
+            <div class="panel-card" style="max-width:720px;">
+                <div class="panel-card-header">
+                    <h3><i class="fas fa-sliders" style="color:var(--teal);margin-right:8px;"></i>Organization Settings</h3>
+                </div>
+                <p class="settings-sub">These settings affect how your organization name and details appear across all pages of the app.</p>
+
+                <div class="settings-grid">
+                    <div class="form-group">
+                        <label for="cfg-company">Company / Organization Name</label>
+                        <input type="text" id="cfg-company" placeholder="TeleHealth Connect" />
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-tagline">Tagline / Slogan</label>
+                        <input type="text" id="cfg-tagline" placeholder="Secure Video Consultations" />
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-timezone">Timezone</label>
+                        <select id="cfg-timezone" class="form-select">
+                            <option value="UTC">UTC (UTC+0)</option>
+                            <option value="America/New_York">US Eastern (UTC‑5/‑4)</option>
+                            <option value="America/Chicago">US Central (UTC‑6/‑5)</option>
+                            <option value="America/Denver">US Mountain (UTC‑7/‑6)</option>
+                            <option value="America/Los_Angeles">US Pacific (UTC‑8/‑7)</option>
+                            <option value="Europe/London">Europe/London (UTC+0/+1)</option>
+                            <option value="Europe/Paris">Europe/Paris (UTC+1/+2)</option>
+                            <option value="Europe/Moscow">Europe/Moscow (UTC+3)</option>
+                            <option value="Asia/Dubai">Asia/Dubai (UTC+4)</option>
+                            <option value="Asia/Kolkata">Asia/Kolkata (UTC+5:30)</option>
+                            <option value="Asia/Manila">Asia/Manila (UTC+8)</option>
+                            <option value="Asia/Singapore">Asia/Singapore (UTC+8)</option>
+                            <option value="Asia/Tokyo">Asia/Tokyo (UTC+9)</option>
+                            <option value="Australia/Sydney">Australia/Sydney (UTC+10/+11)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-email">Contact Email</label>
+                        <input type="email" id="cfg-email" placeholder="hello@yourpractice.com" />
+                    </div>
+                    <div class="form-group full">
+                        <label for="cfg-phone">Contact Phone</label>
+                        <input type="tel" id="cfg-phone" placeholder="+1 (555) 000-0000" />
+                    </div>
+                </div>
+
+                <div class="settings-save-row">
+                    <button id="save-settings-btn" class="btn-primary" style="gap:8px;">
+                        <i class="fas fa-floppy-disk"></i> Save Settings
+                    </button>
+                    <span class="save-hint" id="settings-hint"></span>
+                </div>
+            </div>
+        </div>
+
+        <footer class="site-footer" style="margin-top:32px;">
+            <span class="footer-company dynamic-company-name">TeleHealth Connect</span>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-credit">Developed by <strong>Ymath</strong></span>
+        </footer>
+
+    </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+    /* â”€â”€â”€ DOM refs â”€â”€â”€ */
+    const loginShell  = document.getElementById('login-shell');
+    const adminShell  = document.getElementById('admin-shell');
+    const loginForm   = document.getElementById('login-form');
+    const loginError  = document.getElementById('login-error');
+    const logoutBtn   = document.getElementById('logout-btn');
+    const createBtn   = document.getElementById('create-btn');
+    const roomInput   = document.getElementById('room-name');
+    const resultArea  = document.getElementById('result-area');
+    const patientLink = document.getElementById('patient-link');
+    const hostLink    = document.getElementById('host-link');
+    const copyBtn     = document.getElementById('copy-btn');
+    const copyHostBtn = document.getElementById('copy-host-btn');
+    const joinBtn     = document.getElementById('join-btn');
+
+    /* â”€â”€â”€ Section switching â”€â”€â”€ */
+    document.querySelectorAll('.sidebar-btn[data-section]').forEach(btn => {
+        btn.addEventListener('click', () => switchSection(btn.dataset.section));
+    });
+
+    function switchSection(sectionId) {
+        document.querySelectorAll('.sidebar-btn[data-section]').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+        const targetBtn = document.querySelector(`.sidebar-btn[data-section="${sectionId}"]`);
+        const targetSec = document.getElementById(sectionId);
+        if (targetBtn) targetBtn.classList.add('active');
+        if (targetSec) targetSec.classList.add('active');
+    }
+
+    /* â”€â”€â”€ Auth â”€â”€â”€ */
+    loginForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        loginError.textContent = '';
+        try {
+            const res = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: document.getElementById('username').value.trim(),
+                    password: document.getElementById('password').value
+                })
+            });
+            if (!res.ok) throw new Error('Invalid username or password');
+            showDashboard();
+        } catch (err) {
+            loginError.textContent = err.message;
+        }
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+        await fetch('/api/admin/logout', { method: 'POST' }).catch(() => {});
+        adminShell.classList.remove('active');
+        loginShell.style.display = 'flex';
+        loginForm.reset();
+        loginError.textContent = '';
+    });
+
+    /* ─── Auth-aware fetch wrapper ─── */
+    async function apiFetch(url, opts = {}) {
+        const res = await fetch(url, opts);
+        if (res.status === 401) {
+            showToast('Session expired — please sign in again.');
+            setTimeout(() => {
+                adminShell.classList.remove('active');
+                loginShell.style.display = 'flex';
+                loginForm.reset();
+                loginError.textContent = 'Your session expired. Please sign in again.';
+            }, 800);
+            throw new Error('session_expired');
+        }
+        return res;
+    }
+
+    /* Password generator */
+    function generatePassword() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    }
+
+    document.getElementById('gen-pwd-btn').addEventListener('click', () => {
+        document.getElementById('room-password').value = generatePassword();
+    });
+
+    createBtn.addEventListener('click', async () => {
+        let name = roomInput.value.trim();
+        if (!name) name = 'Consult-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        else name = name.replace(/[^a-zA-Z0-9\-_]/g, '-');
+
+        // Auto-generate password if blank
+        const pwdInput = document.getElementById('room-password');
+        if (!pwdInput.value.trim()) pwdInput.value = generatePassword();
+        const password = pwdInput.value.trim();
+
+        try {
+            const res = await apiFetch('/api/meetings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ roomName: name, password })
+            });
+            if (!res.ok) throw new Error('Could not save meeting');
+            loadMeetings(); loadOverview();
+        } catch (err) { if (err.message !== 'session_expired') showToast(err.message); return; }
+
+        const directLink = window.location.origin + '/host/' + encodeURIComponent(name);
+        const pLink      = window.location.origin + '/consent?room=' + encodeURIComponent(name);
+        patientLink.textContent = pLink;
+        document.getElementById('result-password').textContent = password;
+        hostLink.textContent    = directLink;
+        resultArea.style.display = 'block';
+        joinBtn.onclick = () => window.open(directLink, '_blank');
+    });
+
+    copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(patientLink.textContent).then(() => showToast('Patient link copied!'));
+    });
+
+    copyHostBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(hostLink.textContent).then(() => showToast('Host link copied!'));
+    });
+
+    /* â”€â”€â”€ Data loaders â”€â”€â”€ */
+    async function loadOverview() {
+        try {
+            const [mRes, cRes] = await Promise.all([apiFetch('/api/meetings'), apiFetch('/api/consents')]);
+            const meetings = await mRes.json();
+            const consents = await cRes.json();
+            document.getElementById('stat-meetings').textContent = meetings.length;
+            document.getElementById('stat-consents').textContent = consents.length;
+            const today = new Date().toDateString();
+            document.getElementById('stat-today').textContent = meetings.filter(m => new Date(m.created_at).toDateString() === today).length;
+            const list = document.getElementById('overview-meetings-list');
+            if (!meetings.length) { list.innerHTML = '<div class="muted">No meetings yet.</div>'; return; }
+            list.innerHTML = meetings.slice(0,6).map(m => {
+                const expiry = m.expires_at ? new Date(m.expires_at) : null;
+                const isExpired = expiry && expiry < new Date();
+                const expiryBadge = isExpired ? ' <span style="font-size:10px;background:rgba(239,68,68,.12);color:var(--red);border-radius:4px;padding:1px 5px;font-weight:600;">EXPIRED</span>' : '';
+                const dur = m.duration_seconds != null ? `<span style="font-size:11px;color:var(--teal);margin-left:6px;"><i class="fas fa-clock"></i> ${fmtDuration(m.duration_seconds)}</span>` : '';
+                return `
+                <div class="data-item">
+                    <div><div class="item-title">${m.room_name}${expiryBadge}${dur}</div><div class="item-meta">${new Date(m.created_at).toLocaleString()}</div></div>
+                    <a href="/host/${encodeURIComponent(m.room_name)}" target="_blank" class="join-host-btn" title="Join as Host"><i class="fas fa-arrow-right-to-bracket"></i> Join</a>
+                </div>`;
+            }).join('');
+        } catch(e) { console.error(e); }
+    }
+
+    async function loadMeetings() {
+        try {
+            const meetings = await (await apiFetch('/api/meetings')).json();
+            const list = document.getElementById('meetings-list');
+            if (!meetings.length) { list.innerHTML = '<div class="muted">No meetings yet.</div>'; return; }
+            list.innerHTML = meetings.map((m, i) => {
+                const expiry = m.expires_at ? new Date(m.expires_at) : null;
+                const isExpired = expiry && expiry < new Date();
+                const expiryStr = expiry
+                    ? (isExpired ? '<span style="color:var(--red)">Expired</span>' : 'Expires ' + expiry.toLocaleString())
+                    : '';
+                const durStr = m.duration_seconds != null
+                    ? `<span style="color:var(--teal);"><i class="fas fa-clock"></i> ${fmtDuration(m.duration_seconds)}</span>`
+                    : (m.started_at ? '<span style="color:var(--text-2);font-size:11px;">In progress</span>' : '');
+                const summaryId = `summary-${i}`;
+                const transcriptId = `transcript-${i}`;
+                const summaryBlock = m.summary ? `
+                    <div class="meeting-summary-toggle" onclick="toggleSummary('${summaryId}')">
+                        <i class="fas fa-robot" style="color:var(--teal);"></i> AI Summary
+                        <i class="fas fa-chevron-down summary-chevron" id="chev-${summaryId}"></i>
+                    </div>
+                    <div class="meeting-summary-body" id="${summaryId}" style="display:none;">${m.summary.replace(/\n/g,'<br>')}</div>` : '';
+                const transcriptBlock = `
+                    <div class="meeting-summary-toggle" onclick="loadTranscript('${m.room_name}','${transcriptId}')">
+                        <i class="fas fa-comments" style="color:#94a3b8;"></i> View Transcript
+                        <i class="fas fa-chevron-down summary-chevron" id="chev-${transcriptId}"></i>
+                    </div>
+                    <div class="meeting-summary-body" id="${transcriptId}" style="display:none;padding:0;background:none;border:none;"></div>`;
+                return `
+                <div class="data-item meeting-item-card">
+                    <div style="width:100%;">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                            <div>
+                                <div class="item-title">${m.room_name}</div>
+                                <div class="item-meta">${new Date(m.created_at).toLocaleString()}${expiryStr ? ' &nbsp;·&nbsp; ' + expiryStr : ''}${durStr ? ' &nbsp;·&nbsp; ' + durStr : ''}</div>
+                            </div>
+                            <div style="display:flex;gap:8px;flex-shrink:0;">
+                                <button class="join-host-btn" onclick="copyRoomLink('${m.room_name}', '${m.password || ''}')" title="Copy patient link"><i class="fas fa-copy"></i></button>
+                                <a href="/host/${encodeURIComponent(m.room_name)}" target="_blank" class="join-host-btn primary" title="Join as Host"><i class="fas fa-arrow-right-to-bracket"></i> Join as Host</a>
+                            </div>
+                        </div>
+                        ${summaryBlock}
+                        ${transcriptBlock}
+                    </div>
+                </div>`;
+            }).join('');
+        } catch(e) { console.error(e); }
+    }
+
+    function toggleSummary(id) {
+        const el = document.getElementById(id);
+        const chev = document.getElementById('chev-' + id);
+        if (!el) return;
+        const open = el.style.display === 'none';
+        el.style.display = open ? 'block' : 'none';
+        if (chev) chev.style.transform = open ? 'rotate(180deg)' : '';
+    }
+
+    async function loadTranscript(roomName, containerId) {
+        const el = document.getElementById(containerId);
+        const chev = document.getElementById('chev-' + containerId);
+        if (!el) return;
+        const isOpen = el.style.display !== 'none';
+        if (isOpen) {
+            el.style.display = 'none';
+            if (chev) chev.style.transform = '';
+            return;
+        }
+        el.style.display = 'block';
+        if (chev) chev.style.transform = 'rotate(180deg)';
+        if (el.dataset.loaded) return; // already fetched
+        el.innerHTML = '<div style="padding:10px;color:var(--text-2);font-size:0.82rem;">Loading...</div>';
+        try {
+            const msgs = await (await apiFetch(`/api/meetings/${encodeURIComponent(roomName)}/messages`)).json();
+            if (!msgs.length) {
+                el.innerHTML = '<div style="padding:10px;color:var(--text-2);font-size:0.82rem;">No chat messages recorded for this meeting.</div>';
+            } else {
+                el.innerHTML = `<div class="transcript-log">${msgs.map(m => {
+                    const t = new Date(m.sent_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    return `<div class="transcript-msg"><span class="transcript-sender">${m.sender_name}</span><span class="transcript-time">${t}</span><div class="transcript-text">${m.message}</div></div>`;
+                }).join('')}</div>`;
+            }
+            el.dataset.loaded = '1';
+        } catch(e) {
+            el.innerHTML = '<div style="padding:10px;color:var(--red);font-size:0.82rem;">Failed to load transcript.</div>';
+        }
+    }
+
+    async function loadConsents() {
+        try {
+            const consents = await (await apiFetch('/api/consents')).json();
+            const list = document.getElementById('consents-list');
+            if (!consents.length) { list.innerHTML = '<div class="muted">No consent submissions yet.</div>'; return; }
+            list.innerHTML = consents.map(c => `
+                <div class="data-item">
+                    <div>
+                        <div class="item-title">${c.first_name} ${c.last_name}</div>
+                        <div class="item-meta">Signed ${c.signed_date}</div>
+                    </div>
+                    <img src="${c.signature}" alt="Signature" class="signature-thumb" />
+                </div>`).join('');
+        } catch(e) { console.error(e); }
+    }
+
+    function showDashboard() {
+        loginShell.style.display = 'none';
+        adminShell.classList.add('active');
+        loadOverview(); loadMeetings(); loadConsents(); loadSettings();
+    }
+
+    async function checkAuth() {
+        try {
+            const res = await fetch('/api/admin/me');
+            if (res.ok) { showDashboard(); return; }
+        } catch(e) {}
+        loginShell.style.display = 'flex';
+    }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg; t.className = 'show';
+        setTimeout(() => { t.className = t.className.replace('show',''); }, 3000);
+    }
+
+    function copyConsentLink() {
+        navigator.clipboard.writeText(window.location.origin + '/consent').then(() => showToast('Consent link copied!'));
+    }
+
+    function fmtDuration(sec) {
+        if (sec == null || sec < 0) return '';
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = sec % 60;
+        if (h > 0) return `${h}h ${m}m ${s}s`;
+        if (m > 0) return `${m}m ${s}s`;
+        return `${s}s`;
+    }
+
+    function copyRoomLink(roomName, password) {
+        const base = window.location.origin + '/consent?room=' + encodeURIComponent(roomName);
+        const link = password ? base + '&pwd=' + encodeURIComponent(password) : base;
+        navigator.clipboard.writeText(link).then(() => showToast('Patient link copied!'));
+    }
+
+    /* ─── Settings ─── */
+    async function loadSettings() {
+        try {
+            const res = await fetch('/api/settings');
+            if (!res.ok) return;
+            const s = await res.json();
+            if (s.company_name) {
+                document.getElementById('cfg-company').value = s.company_name;
+                document.querySelectorAll('.dynamic-company-name').forEach(el => el.textContent = s.company_name);
+            }
+            if (s.tagline)       document.getElementById('cfg-tagline').value = s.tagline;
+            if (s.timezone)      document.getElementById('cfg-timezone').value = s.timezone;
+            if (s.contact_email) document.getElementById('cfg-email').value = s.contact_email;
+            if (s.contact_phone) document.getElementById('cfg-phone').value = s.contact_phone;
+        } catch(e) { console.error('loadSettings:', e); }
+    }
+
+    document.getElementById('save-settings-btn').addEventListener('click', async () => {
+        const hint = document.getElementById('settings-hint');
+        try {
+            const res = await apiFetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    company_name: document.getElementById('cfg-company').value.trim(),
+                    tagline:      document.getElementById('cfg-tagline').value.trim(),
+                    timezone:     document.getElementById('cfg-timezone').value,
+                    contact_email:document.getElementById('cfg-email').value.trim(),
+                    contact_phone:document.getElementById('cfg-phone').value.trim()
+                })
+            });
+            if (!res.ok) throw new Error('Save failed');
+            showToast('Settings saved successfully!');
+            hint.textContent = 'Saved ✓';
+            hint.style.color = 'var(--green)';
+            const name = document.getElementById('cfg-company').value.trim();
+            if (name) document.querySelectorAll('.dynamic-company-name').forEach(el => el.textContent = name);
+            setTimeout(() => { hint.textContent = ''; }, 3000);
+        } catch(e) {
+            showToast('Could not save settings');
+            hint.textContent = e.message;
+            hint.style.color = 'var(--red)';
+        }
+    });
+
+    checkAuth();
+</script>
+</body>
+</html>

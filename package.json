@@ -1,0 +1,24 @@
+{
+  "name": "videocall-meeting-system",
+  "version": "1.0.0",
+  "description": "Video call meeting system with Node.js and WebRTC",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "webrtc",
+    "video-call",
+    "socket.io",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "dotenv": "^17.3.1",
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "sqlite3": "^5.1.7"
+  }
+}

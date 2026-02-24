@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TeleHealth Connect — Secure Video Consultations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+</head>
+<body>
+<div id="room-selection-container" class="homepage-shell">
+
+        <!-- Top navigation bar -->
+        <nav class="home-topbar">
+            <a class="home-brand" href="/">
+                <div class="brand-icon"><i class="fas fa-heartbeat"></i></div>
+                <div>
+                    <span>TeleHealth Connect</span>
+                    <span class="brand-sub">Secure Video Consultations</span>
+                </div>
+            </a>
+            <div class="topbar-actions">
+                <a href="/admin" class="topbar-btn"><i class="fas fa-user-shield"></i> Admin</a>
+                <a href="/consent" target="_blank" class="topbar-btn"><i class="fas fa-file-signature"></i> Consent Form</a>
+            </div>
+        </nav>
+
+        <!-- Hero section -->
+        <section class="home-hero">
+            <div class="hero-left">
+                <div class="hero-eyebrow"><i class="fas fa-shield-alt"></i>&nbsp; HIPAA-Aligned &amp; End-to-End Encrypted</div>
+                <h1>Telehealth consultations,<br><em>simplified</em></h1>
+                <p class="hero-desc">Start a private video session in seconds. Built-in waiting rooms, patient consent forms, and secure P2P connections — everything your practice needs.</p>
+                <div class="hero-cta-row">
+                    <a href="#create" class="hero-cta primary" onclick="document.getElementById('create-password-input').focus();return false;"><i class="fas fa-video"></i> Start a Consultation</a>
+                    <a href="/consent" target="_blank" class="hero-cta secondary"><i class="fas fa-file-alt"></i> Patient Consent Form</a>
+                </div>
+            </div>
+            <div class="hero-features">
+                <div class="feature-chip">
+                    <div class="chip-icon teal"><i class="fas fa-lock"></i></div>
+                    <div><h4>Encrypted P2P</h4><p>WebRTC direct connection, no media servers</p></div>
+                </div>
+                <div class="feature-chip">
+                    <div class="chip-icon green"><i class="fas fa-user-check"></i></div>
+                    <div><h4>Waiting Room</h4><p>Host controls who enters the session</p></div>
+                </div>
+                <div class="feature-chip">
+                    <div class="chip-icon amber"><i class="fas fa-file-signature"></i></div>
+                    <div><h4>Digital Consent</h4><p>Built-in patient consent with signature</p></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Action panels -->
+        <section class="home-panels">
+            <div class="action-group">
+                <div class="panel-head">
+                    <div class="panel-head-icon create"><i class="fas fa-plus"></i></div>
+                    <div>
+                        <h3>Start a Consultation</h3>
+                        <p>Create a new secure meeting room</p>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Room Password (Optional)</label>
+                    <input id="create-password-input" type="password" placeholder="Leave blank for an open room" />
+                </div>
+                <button id="create-button" class="primary-btn" style="width:100%;justify-content:center;padding:12px;"><i class="fas fa-wand-magic-sparkles"></i>&nbsp; Create Secure Meeting</button>
+            </div>
+
+            <div class="action-group">
+                <div class="panel-head">
+                    <div class="panel-head-icon join"><i class="fas fa-arrow-right-to-bracket"></i></div>
+                    <div>
+                        <h3>Join a Session</h3>
+                        <p>Enter a room ID or paste a meeting link</p>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Meeting ID or Link</label>
+                    <input id="room-input" type="text" placeholder="e.g. abc123 or paste full link" />
+                </div>
+                <div class="form-group">
+                    <label>Room Password (if required)</label>
+                    <input id="join-password-input" type="password" placeholder="Enter password" />
+                </div>
+                <button id="connect-button"><i class="fas fa-arrow-right"></i>&nbsp; Join Meeting</button>
+            </div>
+        </section>
+
+        <footer class="site-footer">
+            <span class="footer-company" id="footer-company">TeleHealth Connect</span>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-credit">Developed by <strong>Ymath</strong></span>
+        </footer>
+
+    </div>
+
+    <!-- Waiting Room Overlay -->
+    <div id="waiting-room-overlay" class="overlay" style="display:none">
+        <div class="overlay-content">
+            <div style="font-size:2.5rem;color:var(--teal);margin-bottom:14px;"><i id="waiting-icon" class="fas fa-hourglass-half"></i></div>
+            <h2 id="waiting-title">Waiting Room</h2>
+            <p id="waiting-message">You're in the waiting room.<br>Please wait for the provider to admit you.</p>
+            <div class="loader"></div>
+            <p id="waiting-sub" style="font-size:12px;color:var(--text-3);margin-top:14px;display:none;"></p>
+        </div>
+    </div>
+
+    <!-- Name Prompt Modal -->
+    <div id="name-modal" class="overlay" style="display:none;">
+        <div class="overlay-content" style="max-width:380px;width:90%;gap:0;">
+            <div style="font-size:2rem;color:var(--teal);margin-bottom:12px;"><i class="fas fa-user-circle"></i></div>
+            <h2 style="margin-bottom:6px;">Your Display Name</h2>
+            <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;text-align:center;">How should other participants see you in this session?</p>
+            <div class="form-group" style="width:100%;margin-bottom:14px;">
+                <input id="name-modal-input" type="text" placeholder="e.g. Dr. Smith or Jane Doe" style="width:100%;box-sizing:border-box;font-size:15px;" maxlength="40" autocomplete="name" />
+            </div>
+            <button id="name-modal-submit" class="btn-primary" style="width:100%;justify-content:center;padding:11px;font-size:14px;">
+                <i class="fas fa-arrow-right"></i> Continue
+            </button>
+        </div>
+    </div>
+
+    <!-- Meeting Ended Overlay -->
+    <div id="meeting-ended-overlay" class="overlay" style="display:none;">
+        <div class="overlay-content" style="max-width:420px;width:90%;gap:0;">
+            <div style="font-size:2.5rem;color:#ef4444;margin-bottom:14px;"><i class="fas fa-circle-xmark"></i></div>
+            <h2 style="margin-bottom:8px;">Meeting Ended</h2>
+            <p style="font-size:13px;color:var(--text-2);margin-bottom:24px;text-align:center;">The host has ended this meeting for all participants.</p>
+            <button onclick="location.href='/'" class="btn-primary" style="width:100%;justify-content:center;padding:11px;font-size:14px;">
+                <i class="fas fa-house"></i> Return to Home
+            </button>
+        </div>
+    </div>
+
+    <!-- Password Prompt Modal -->
+    <div id="pwd-modal" class="overlay" style="display:none;">
+        <div class="overlay-content" style="max-width:380px;width:90%;gap:0;">
+            <div style="font-size:2rem;color:var(--teal);margin-bottom:12px;"><i class="fas fa-lock"></i></div>
+            <h2 style="margin-bottom:6px;">Password Required</h2>
+            <p style="font-size:13px;color:var(--text-2);margin-bottom:20px;text-align:center;">This meeting is password-protected.<br>Enter the password provided by your provider.</p>
+            <div class="form-group" style="width:100%;margin-bottom:6px;">
+                <input id="pwd-modal-input" type="password" placeholder="Enter meeting password" style="width:100%;box-sizing:border-box;font-size:15px;letter-spacing:.05em;" autocomplete="off" />
+            </div>
+            <div id="pwd-modal-error" style="font-size:12px;color:var(--red);min-height:18px;margin-bottom:10px;text-align:center;"></div>
+            <button id="pwd-modal-submit" class="btn-primary" style="width:100%;justify-content:center;padding:11px;font-size:14px;">
+                <i class="fas fa-arrow-right-to-bracket"></i> Join Meeting
+            </button>
+        </div>
+    </div>
+
+    <!-- Host Notifications Area -->
+    <div id="host-notifications" class="notifications-container"></div>
+    
+    <div id="video-chat-container" class="video-container" style="display:none">
+        
+        <!-- Room Header -->
+        <div class="room-header">
+            <i class="fas fa-heartbeat" style="color:var(--teal);font-size:0.85rem;"></i>
+            <h2 id="room-display-name">Consultation Room</h2>
+            <span class="status-indicator">● Live</span>
+            <span id="meeting-timer" class="meeting-timer" style="display:none;">00:00</span>
+            <span id="quality-indicator" class="quality-indicator" title="Connection quality" style="display:none;"><i class="fas fa-signal"></i></span>
+        </div>
+
+        <div id="video-grid" class="video-grid">
+            <div class="video-wrapper">
+                <video id="user-video" autoplay muted playsinline></video>
+                <div class="name-tag">You</div>
+            </div>
+            <!-- Dynamic peers will be added here -->
+        </div>
+
+        <div class="controls-bar">
+            <button id="mute-button" class="control-btn" title="Mute Audio">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button id="hide-camera-button" class="control-btn" title="Stop Video">
+                <i class="fas fa-video"></i>
+            </button>
+            <button id="share-screen-button" class="control-btn" title="Share Screen">
+                <i class="fas fa-desktop"></i>
+            </button>
+            <button id="invite-button" class="control-btn" title="Copy Invite Link">
+                <i class="fas fa-user-plus"></i>
+            </button>
+            <button id="chat-toggle-button" class="control-btn" title="Toggle Chat">
+                <i class="fas fa-comment"></i>
+            </button>
+            <button id="raise-hand-button" class="control-btn" title="Raise Hand">
+                <i class="fas fa-hand"></i>
+            </button>
+            <button id="fullscreen-button" class="control-btn" title="Toggle Fullscreen">
+                <i class="fas fa-expand"></i>
+            </button>
+            <button id="end-meeting-button" class="control-btn end-meeting-btn" title="End Meeting for All" style="display:none;">
+                <i class="fas fa-plug-circle-xmark"></i>
+            </button>
+            <button id="leave-button" class="control-btn leave-btn" title="Leave Call">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
+
+        <div id="chat-container">
+            <div id="chat-header">
+                <div id="chat-company-name"></div>
+                <div class="chat-header-row">
+                    <h3>Meeting Chat</h3>
+                    <button id="chat-close-btn">&times;</button>
+                </div>
+            </div>
+            <div id="chat-messages"></div>
+            <div id="chat-input-container">
+                <input type="text" id="chat-input" placeholder="Type a message..." />
+                <button id="chat-send-btn"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+    <script>
+        /* Load company name from settings */
+        fetch('/api/settings').then(r => r.json()).then(s => {
+            if (s.company_name) {
+                const fc = document.getElementById('footer-company');
+                if (fc) fc.textContent = s.company_name;
+                const brandName = document.querySelector('.home-brand > div > span:first-child');
+                if (brandName) brandName.textContent = s.company_name;
+                document.title = s.company_name + ' — Secure Video Consultations';
+                const ccn = document.getElementById('chat-company-name');
+                if (ccn) ccn.textContent = s.company_name;
+            }
+        }).catch(() => {});
+    </script>
+</body>
+</html>
