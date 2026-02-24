@@ -157,6 +157,69 @@
 
     <!-- Host Notifications Area -->
     <div id="host-notifications" class="notifications-container"></div>
+
+    <!-- Device Check Modal -->
+    <div id="device-check-modal" class="overlay" style="display:none;">
+        <div class="dc-modal">
+            <div class="dc-header">
+                <div class="dc-header-icon"><i class="fas fa-video"></i></div>
+                <div>
+                    <h2>Camera &amp; Microphone Check</h2>
+                    <p>Make sure your devices are working before joining</p>
+                </div>
+            </div>
+
+            <!-- Camera preview -->
+            <div class="dc-preview-wrap">
+                <video id="dc-preview" autoplay muted playsinline class="dc-preview-video"></video>
+                <div id="dc-no-camera" class="dc-no-camera" style="display:none;">
+                    <i class="fas fa-video-slash"></i>
+                    <span>Camera not available</span>
+                </div>
+            </div>
+
+            <!-- Status badges -->
+            <div class="dc-status-row">
+                <div id="dc-cam-status" class="dc-status-badge dc-checking">
+                    <i class="fas fa-video"></i>
+                    <span>Checking camera…</span>
+                </div>
+                <div id="dc-mic-status" class="dc-status-badge dc-checking">
+                    <i class="fas fa-microphone"></i>
+                    <span>Checking mic…</span>
+                </div>
+            </div>
+
+            <!-- Mic level meter -->
+            <div class="dc-mic-level">
+                <span class="dc-level-label"><i class="fas fa-wave-square"></i> Mic level</span>
+                <div class="dc-mic-bar-track">
+                    <div id="dc-mic-bar-fill" class="dc-mic-bar-fill"></div>
+                </div>
+                <span class="dc-level-hint">Speak to test your microphone</span>
+            </div>
+
+            <!-- Device selectors -->
+            <div class="dc-devices">
+                <div class="dc-device-row">
+                    <label><i class="fas fa-video"></i> Camera</label>
+                    <select id="dc-cam-select"></select>
+                </div>
+                <div class="dc-device-row">
+                    <label><i class="fas fa-microphone"></i> Microphone</label>
+                    <select id="dc-mic-select"></select>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="dc-actions">
+                <button id="dc-cancel-btn" class="dc-cancel-btn">Cancel</button>
+                <button id="dc-join-btn" class="dc-join-btn">
+                    <i class="fas fa-arrow-right-to-bracket"></i> Join Now
+                </button>
+            </div>
+        </div>
+    </div>
     
     <div id="video-chat-container" class="video-container" style="display:none">
         

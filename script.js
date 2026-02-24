@@ -389,25 +389,177 @@ socket.on('room-error', (message) => {
     alert(message || 'Meeting error. Please contact your provider.');
 });
 
+/* ─── Device Check ─── */
+let _dcStream    = null;
+let _dcAudioCtx  = null;
+let _dcAnimFrame = null;
+
+function _dcStopResources() {
+    if (_dcAnimFrame) { cancelAnimationFrame(_dcAnimFrame); _dcAnimFrame = null; }
+    if (_dcAudioCtx)  { _dcAudioCtx.close().catch(()=>{}); _dcAudioCtx = null; }
+}
+
+function _dcStartMicMeter(stream) {
+    try {
+        const ctx      = new (window.AudioContext || window.webkitAudioContext)();
+        const src      = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        src.connect(analyser);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        const fill = document.getElementById('dc-mic-bar-fill');
+        function tick() {
+            _dcAnimFrame = requestAnimationFrame(tick);
+            analyser.getByteFrequencyData(data);
+            const avg = data.reduce((a, b) => a + b, 0) / data.length;
+            if (fill) fill.style.width = Math.min(100, avg * 2.5) + '%';
+        }
+        tick();
+        _dcAudioCtx = ctx;
+    } catch(e) {}
+}
+
+async function showDeviceCheck(callback) {
+    const modal     = document.getElementById('device-check-modal');
+    const preview   = document.getElementById('dc-preview');
+    const noCamera  = document.getElementById('dc-no-camera');
+    const camStatus = document.getElementById('dc-cam-status');
+    const micStatus = document.getElementById('dc-mic-status');
+    const camSel    = document.getElementById('dc-cam-select');
+    const micSel    = document.getElementById('dc-mic-select');
+    const joinBtn   = document.getElementById('dc-join-btn');
+    const cancelBtn = document.getElementById('dc-cancel-btn');
+
+    // Reset UI
+    _dcStopResources();
+    if (_dcStream) { _dcStream.getTracks().forEach(t => t.stop()); _dcStream = null; }
+    camStatus.className = 'dc-status-badge dc-checking';
+    camStatus.querySelector('span').textContent = 'Checking camera\u2026';
+    micStatus.className = 'dc-status-badge dc-checking';
+    micStatus.querySelector('span').textContent = 'Checking mic\u2026';
+    if (preview) { preview.srcObject = null; preview.style.display = 'block'; }
+    if (noCamera) noCamera.style.display = 'none';
+    if (camSel) camSel.innerHTML = '';
+    if (micSel) micSel.innerHTML = '';
+    if (joinBtn) joinBtn.disabled = false;
+    const fill = document.getElementById('dc-mic-bar-fill');
+    if (fill) fill.style.width = '0%';
+
+    modal.style.display = 'flex';
+
+    async function startStream(videoId, audioId) {
+        _dcStopResources();
+        if (_dcStream) { _dcStream.getTracks().forEach(t => t.stop()); _dcStream = null; }
+
+        const constraints = {
+            video: videoId ? { deviceId: { exact: videoId } } : true,
+            audio: audioId ? { deviceId: { exact: audioId } } : true,
+        };
+        try {
+            _dcStream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch(e) {
+            // Fallback: try audio-only
+            try { _dcStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false }); }
+            catch(e2) { _dcStream = null; }
+        }
+
+        const hasCam = _dcStream && _dcStream.getVideoTracks().length > 0;
+        const hasMic = _dcStream && _dcStream.getAudioTracks().length > 0;
+
+        if (hasCam) {
+            preview.srcObject = _dcStream;
+            preview.style.display = 'block';
+            noCamera.style.display = 'none';
+            camStatus.className = 'dc-status-badge dc-ok';
+            camStatus.querySelector('span').textContent = 'Camera ready';
+        } else {
+            if (preview) preview.style.display = 'none';
+            noCamera.style.display = 'flex';
+            camStatus.className = 'dc-status-badge dc-fail';
+            camStatus.querySelector('span').textContent = 'No camera';
+        }
+
+        if (hasMic) {
+            micStatus.className = 'dc-status-badge dc-ok';
+            micStatus.querySelector('span').textContent = 'Microphone ready';
+            _dcStartMicMeter(_dcStream);
+        } else {
+            micStatus.className = 'dc-status-badge dc-fail';
+            micStatus.querySelector('span').textContent = 'No microphone';
+        }
+    }
+
+    async function populateDevices() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cameras = devices.filter(d => d.kind === 'videoinput');
+            const mics    = devices.filter(d => d.kind === 'audioinput');
+
+            camSel.innerHTML = cameras.length
+                ? cameras.map((d, i) => `<option value="${d.deviceId}">${d.label || 'Camera ' + (i+1)}</option>`).join('')
+                : '<option value="">No cameras found</option>';
+            micSel.innerHTML = mics.length
+                ? mics.map((d, i) => `<option value="${d.deviceId}">${d.label || 'Microphone ' + (i+1)}</option>`).join('')
+                : '<option value="">No microphones found</option>';
+
+            // Select current device
+            if (_dcStream) {
+                const vt = _dcStream.getVideoTracks()[0];
+                const at = _dcStream.getAudioTracks()[0];
+                if (vt) { const id = vt.getSettings().deviceId; if (id) camSel.value = id; }
+                if (at) { const id = at.getSettings().deviceId; if (id) micSel.value = id; }
+            }
+        } catch(e) {}
+    }
+
+    await startStream(null, null);
+    await populateDevices();
+
+    camSel.onchange = () => startStream(camSel.value || null, micSel.value || null);
+    micSel.onchange = () => startStream(camSel.value || null, micSel.value || null);
+
+    // Replace previous listeners to avoid stacking
+    const newJoin   = joinBtn.cloneNode(true);
+    const newCancel = cancelBtn.cloneNode(true);
+    joinBtn.replaceWith(newJoin);
+    cancelBtn.replaceWith(newCancel);
+
+    newJoin.addEventListener('click', () => {
+        _dcStopResources();
+        modal.style.display = 'none';
+        const s = _dcStream;
+        _dcStream = null;
+        callback(s);
+    });
+
+    newCancel.addEventListener('click', () => {
+        _dcStopResources();
+        if (_dcStream) { _dcStream.getTracks().forEach(t => t.stop()); _dcStream = null; }
+        modal.style.display = 'none';
+        // Allow user to return to home
+        location.reload();
+    });
+}
+
 socket.on('created', () => {
     isHost = true;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         alert('Your browser does not support camera access or requires HTTPS.');
         return;
     }
-    navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-        .then((stream) => {
-            localStream = stream;
-            userVideo.srcObject = stream;
-            roomSelectionContainer.style = 'display:none';
-            videoChatContainer.style = 'display:block';
-            startCallSession();
-            updateVideoGridLayout();
-        })
-        .catch((error) => {
-            alert('Could not access microphone or camera. Please ensure you have granted permissions.');
-            console.error(error);
-        });
+    roomSelectionContainer.style = 'display:none';
+    showDeviceCheck((stream) => {
+        if (!stream) {
+            alert('Could not access your camera or microphone. Please grant permissions and try again.');
+            location.reload();
+            return;
+        }
+        localStream = stream;
+        userVideo.srcObject = stream;
+        videoChatContainer.style = 'display:block';
+        startCallSession();
+        updateVideoGridLayout();
+    });
 });
 
 socket.on('join-error', (message) => {
@@ -493,20 +645,20 @@ socket.on('admitted', () => {
         alert('Your browser does not support camera access or requires HTTPS.');
         return;
     }
-    navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-        .then((stream) => {
-            localStream = stream;
-            userVideo.srcObject = stream;
-            videoChatContainer.style = 'display:block';
-            startCallSession();
-            updateVideoGridLayout();
-            socket.emit('ready', roomName);
-            if (displayName) socket.emit('user-name', roomName, displayName);
-        })
-        .catch((error) => {
-            alert('Could not access microphone or camera. Please ensure you have granted permissions.');
-            console.error(error);
-        });
+    showDeviceCheck((stream) => {
+        if (!stream) {
+            alert('Could not access your camera or microphone. Please grant permissions and try again.');
+            location.reload();
+            return;
+        }
+        localStream = stream;
+        userVideo.srcObject = stream;
+        videoChatContainer.style = 'display:block';
+        startCallSession();
+        updateVideoGridLayout();
+        socket.emit('ready', roomName);
+        if (displayName) socket.emit('user-name', roomName, displayName);
+    });
 });
 
 socket.on('ready', (socketId) => {
