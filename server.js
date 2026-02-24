@@ -97,7 +97,13 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
     db.run(`CREATE TABLE IF NOT EXISTS meetings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       room_name TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      password TEXT DEFAULT '',
+      expires_at DATETIME,
+      started_at DATETIME,
+      ended_at DATETIME,
+      duration_seconds INTEGER,
+      summary TEXT
     )`);
     db.run(`CREATE TABLE IF NOT EXISTS consents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
