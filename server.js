@@ -439,9 +439,9 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // ── Capacity (max 2: host + 1 patient) ─────────────────────────────────────
-    if (room.participants && room.participants.size >= 2) {
-      socket.emit('join-error', 'This meeting room is full.');
+    // ── Capacity (max 5 participants) ───────────────────────────────────────────
+    if (room.participants && room.participants.size >= 5) {
+      socket.emit('join-error', 'This meeting room is full (maximum 5 participants).');
       return;
     }
 

@@ -402,6 +402,7 @@ socket.on('created', () => {
             roomSelectionContainer.style = 'display:none';
             videoChatContainer.style = 'display:block';
             startCallSession();
+            updateVideoGridLayout();
         })
         .catch((error) => {
             alert('Could not access microphone or camera. Please ensure you have granted permissions.');
@@ -498,6 +499,7 @@ socket.on('admitted', () => {
             userVideo.srcObject = stream;
             videoChatContainer.style = 'display:block';
             startCallSession();
+            updateVideoGridLayout();
             socket.emit('ready', roomName);
             if (displayName) socket.emit('user-name', roomName, displayName);
         })
@@ -546,6 +548,7 @@ socket.on('user-disconnected', (socketId) => {
         peerVideos[socketId].remove();
         delete peerVideos[socketId];
     }
+    updateVideoGridLayout();
 });
 
 function createPeerConnection(socketId, isInitiator) {
@@ -584,27 +587,33 @@ function createVideoElement(socketId, stream) {
     const wrapper = document.createElement('div');
     wrapper.classList.add('video-wrapper');
     wrapper.id = `wrapper-${socketId}`;
-    
-    // Calculate width dynamically based on number of peers? 
-    // CSS flex-wrap handles basic flow, but we can refine if needed.
 
     const video = document.createElement('video');
-    video.id = `video-${socketId}`; // ID for potential future use
+    video.id = `video-${socketId}`;
     video.autoplay = true;
     video.playsInline = true;
     video.srcObject = stream;
-    
+
     const nameTag = document.createElement('div');
     nameTag.classList.add('name-tag');
     nameTag.innerText = 'Connecting…';
 
     wrapper.appendChild(video);
     wrapper.appendChild(nameTag);
-    document.querySelector('.video-grid').appendChild(wrapper); // Updated selector
-    
+    document.querySelector('.video-grid').appendChild(wrapper);
+
     peerVideos[socketId] = wrapper;
+    updateVideoGridLayout();
 }
 
+/* Update .video-grid count class so CSS applies the right tile widths */
+function updateVideoGridLayout() {
+    const grid = document.querySelector('.video-grid');
+    if (!grid) return;
+    grid.className = grid.className.replace(/\bcount-\d+\b/g, '').trim();
+    const count = grid.querySelectorAll('.video-wrapper').length;
+    grid.classList.add('count-' + Math.max(1, Math.min(count, 5)));
+}
 
 // End of WebRTC logic
 
