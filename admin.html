@@ -432,6 +432,10 @@
         navigator.clipboard.writeText(patientLink.textContent).then(() => showToast('Patient link copied!'));
     });
 
+    document.getElementById('copy-pwd-btn').addEventListener('click', () => {
+        navigator.clipboard.writeText(document.getElementById('result-password').textContent).then(() => showToast('Password copied!'));
+    });
+
     copyHostBtn.addEventListener('click', () => {
         navigator.clipboard.writeText(hostLink.textContent).then(() => showToast('Host link copied!'));
     });
