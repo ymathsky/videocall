@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const nodemailer = require('nodemailer');
 const app = express();
 const http = require('http');
 const server = http.createServer(app);
@@ -123,7 +124,12 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
         ['timezone',      'UTC'],
         ['contact_email', ''],
         ['contact_phone', ''],
-        ['company_logo',  '']
+        ['company_logo',  ''],
+        ['smtp_host',     ''],
+        ['smtp_port',     '587'],
+        ['smtp_user',     ''],
+        ['smtp_pass',     ''],
+        ['smtp_from',     '']
       ];
       defaults.forEach(([k, v]) => {
         db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, [k, v]);
@@ -176,6 +182,10 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
     db.run(`ALTER TABLE users ADD COLUMN username TEXT DEFAULT ''`, () => {});
     db.run(`ALTER TABLE users ADD COLUMN password_hash TEXT DEFAULT ''`, () => {});
     db.run(`ALTER TABLE users ADD COLUMN password_salt TEXT DEFAULT ''`, () => {});
+    // SOAP notes + patient email migrations
+    db.run(`ALTER TABLE meetings ADD COLUMN soap_notes TEXT DEFAULT ''`, () => {});
+    db.run(`ALTER TABLE consents ADD COLUMN email TEXT DEFAULT ''`, () => {});
+    db.run(`ALTER TABLE consents ADD COLUMN room_name TEXT DEFAULT ''`, () => {});
   }
 });
 
@@ -263,6 +273,37 @@ app.get('/api/meetings', requireAdmin, (req, res) => {
   });
 });
 
+// SOAP Notes — per room
+app.get('/api/meetings/:roomName/notes', requireAdmin, (req, res) => {
+  db.get(
+    `SELECT soap_notes AS notes FROM meetings WHERE room_name = ?`,
+    [req.params.roomName],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ notes: row ? (row.notes || '') : '' });
+    }
+  );
+});
+
+app.put('/api/meetings/:roomName/notes', requireAdmin, (req, res) => {
+  const { notes } = req.body;
+  // Try update first; if no row exists (unregistered room), insert one
+  db.run(
+    `UPDATE meetings SET soap_notes = ? WHERE room_name = ?`,
+    [notes || '', req.params.roomName],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) {
+        db.run(
+          `INSERT OR IGNORE INTO meetings (room_name, soap_notes) VALUES (?, ?)`,
+          [req.params.roomName, notes || '']
+        );
+      }
+      res.json({ message: 'Notes saved' });
+    }
+  );
+});
+
 app.get('/api/meetings/:roomName/messages', requireAdmin, (req, res) => {
   db.all(
     `SELECT sender_name, message, sent_at FROM chat_messages WHERE room_name = ? ORDER BY sent_at ASC`,
@@ -275,13 +316,13 @@ app.get('/api/meetings/:roomName/messages', requireAdmin, (req, res) => {
 });
 
 app.post('/api/consents', (req, res) => {
-  const { firstName, lastName, signature, date, roomName } = req.body;
+  const { firstName, lastName, signature, date, roomName, email } = req.body;
   if (!firstName || !lastName || !signature || !date) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
-  db.run(`INSERT INTO consents (first_name, last_name, signature, signed_date) VALUES (?, ?, ?, ?)`,
-    [firstName, lastName, signature, date],
+  db.run(`INSERT INTO consents (first_name, last_name, signature, signed_date, email, room_name) VALUES (?, ?, ?, ?, ?, ?)`,
+    [firstName, lastName, signature, date, email || '', roomName || ''],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       const consentId = this.lastID;
@@ -321,7 +362,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', requireAdmin, (req, res) => {
-  const allowed = ['company_name', 'tagline', 'timezone', 'contact_email', 'contact_phone', 'company_logo'];
+  const allowed = ['company_name', 'tagline', 'timezone', 'contact_email', 'contact_phone', 'company_logo', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from'];
   const updates = Object.entries(req.body).filter(([k]) => allowed.includes(k));
   if (!updates.length) return res.status(400).json({ error: 'No valid settings provided' });
   const tasks = updates.map(([k, v]) =>
@@ -472,6 +513,91 @@ async function finalizeMeeting(roomName) {
       `UPDATE meetings SET ended_at = ?, duration_seconds = ?, summary = ? WHERE room_name = ?`,
       [endedAt.toISOString(), durationSec, summary, roomName]
     );
+  }
+
+  // Send follow-up email to patient if email was collected via consent form
+  db.get(
+    `SELECT email FROM consents WHERE room_name = ? AND email != '' ORDER BY created_at DESC LIMIT 1`,
+    [roomName],
+    (err, consent) => {
+      if (!err && consent && consent.email) {
+        sendFollowUpEmail(roomName, consent.email, summary, durationSec);
+      }
+    }
+  );
+}
+
+// ── Follow-up email ───────────────────────────────────────────────────────────
+function fmtDurationStr(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+async function sendFollowUpEmail(roomName, patientEmail, summary, durationSec) {
+  try {
+    const settings = await new Promise((resolve, reject) => {
+      db.all(
+        `SELECT key, value FROM settings WHERE key IN ('smtp_host','smtp_port','smtp_user','smtp_pass','smtp_from','company_name')`,
+        [],
+        (err, rows) => {
+          if (err) { reject(err); return; }
+          const s = {};
+          rows.forEach(r => { s[r.key] = r.value; });
+          resolve(s);
+        }
+      );
+    });
+
+    if (!settings.smtp_host || !settings.smtp_user || !settings.smtp_pass) {
+      console.log('[EMAIL] SMTP not configured — skipping follow-up email');
+      return;
+    }
+
+    const port      = parseInt(settings.smtp_port) || 587;
+    const transporter = nodemailer.createTransport({
+      host: settings.smtp_host,
+      port,
+      secure: port === 465,
+      auth: { user: settings.smtp_user, pass: settings.smtp_pass },
+    });
+
+    const companyName = settings.company_name || 'TeleHealth Connect';
+    const fromAddr    = settings.smtp_from   || `${companyName} <${settings.smtp_user}>`;
+    const dur         = durationSec ? fmtDurationStr(durationSec) : 'N/A';
+    const summaryHtml = summary
+      ? summary.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')
+      : 'No summary available for this visit.';
+
+    const htmlBody = `
+<!DOCTYPE html><html><body style="font-family:Inter,Arial,sans-serif;background:#f8fafc;padding:32px 0;margin:0;">
+<div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+  <div style="background:linear-gradient(135deg,#0d9488,#0891b2);padding:28px 32px;">
+    <h2 style="color:#fff;margin:0;font-size:1.3rem;">${companyName}</h2>
+    <p style="color:rgba(255,255,255,.8);margin:6px 0 0;font-size:14px;">Thank you for your telehealth consultation</p>
+  </div>
+  <div style="padding:28px 32px;">
+    <h3 style="color:#0f172a;margin-top:0;">Visit Summary</h3>
+    <div style="background:#f1f5f9;border-left:4px solid #0d9488;padding:16px 20px;border-radius:0 8px 8px 0;color:#334155;line-height:1.7;font-size:14px;">${summaryHtml}</div>
+    <table style="width:100%;border-collapse:collapse;margin-top:20px;font-size:13px;">
+      <tr style="border-top:1px solid #e2e8f0;"><td style="padding:10px 0;color:#64748b;">Duration</td><td style="text-align:right;color:#0f172a;font-weight:600;">${dur}</td></tr>
+    </table>
+  </div>
+  <div style="background:#f8fafc;padding:18px 32px;text-align:center;border-top:1px solid #e2e8f0;">
+    <p style="font-size:12px;color:#94a3b8;margin:0;">This is an automated message from ${companyName}. Please contact your provider if you have questions.</p>
+  </div>
+</div></body></html>`;
+
+    await transporter.sendMail({
+      from: fromAddr,
+      to:   patientEmail,
+      subject: `Your consultation summary — ${companyName}`,
+      html:    htmlBody,
+    });
+    console.log(`[EMAIL] Follow-up sent to ${patientEmail} for room "${roomName}"`);
+  } catch(e) {
+    console.error('[EMAIL] Failed:', e.message);
   }
 }
 const pendingTokens = new Map(); // guestSocketId -> joinToken (cleared after admit/deny/disconnect)

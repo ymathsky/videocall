@@ -265,6 +265,9 @@
             <button id="end-meeting-button" class="control-btn end-meeting-btn" title="End Meeting for All" style="display:none;">
                 <i class="fas fa-plug-circle-xmark"></i>
             </button>
+            <button id="notes-toggle-button" class="control-btn" title="SOAP Notes (Host Only)" style="display:none;">
+                <i class="fas fa-notes-medical"></i>
+            </button>
             <button id="leave-button" class="control-btn leave-btn" title="Leave Call">
                 <i class="fas fa-phone-slash"></i>
             </button>
@@ -282,6 +285,37 @@
             <div id="chat-input-container">
                 <input type="text" id="chat-input" placeholder="Type a message..." />
                 <button id="chat-send-btn"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+
+        <!-- SOAP Notes Panel (host only) -->
+        <div id="notes-panel">
+            <div id="notes-header">
+                <div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;">
+                    <i class="fas fa-notes-medical" style="color:#a78bfa;"></i> SOAP Notes
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span id="notes-save-status" style="font-size:11px;color:var(--text-3);"></span>
+                    <button id="notes-close-btn" style="background:none;border:none;color:var(--text-2);cursor:pointer;font-size:1.1rem;padding:4px;">&times;</button>
+                </div>
+            </div>
+            <div id="notes-body">
+                <div class="soap-section">
+                    <label class="soap-label"><span class="soap-letter">S</span> Subjective</label>
+                    <textarea id="soap-s" class="soap-textarea" placeholder="Patient's chief complaint, history of present illness, symptoms as described by the patient..."></textarea>
+                </div>
+                <div class="soap-section">
+                    <label class="soap-label"><span class="soap-letter">O</span> Objective</label>
+                    <textarea id="soap-o" class="soap-textarea" placeholder="Observed findings, clinical measurements, exam results, vitals..."></textarea>
+                </div>
+                <div class="soap-section">
+                    <label class="soap-label"><span class="soap-letter">A</span> Assessment</label>
+                    <textarea id="soap-a" class="soap-textarea" placeholder="Diagnosis, differential diagnoses, clinical impression..."></textarea>
+                </div>
+                <div class="soap-section">
+                    <label class="soap-label"><span class="soap-letter">P</span> Plan</label>
+                    <textarea id="soap-p" class="soap-textarea" placeholder="Treatment plan, medications prescribed, referrals, follow-up instructions..."></textarea>
+                </div>
             </div>
         </div>
     </div>

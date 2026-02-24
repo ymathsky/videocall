@@ -60,6 +60,10 @@
                         <input type="text" id="lastName" placeholder="Doe" required />
                     </div>
                 </div>
+                <div class="form-group">
+                    <label for="patientEmail">Email Address <span style="color:var(--text-3);font-weight:400;">(optional &mdash; receive a visit summary after the call)</span></label>
+                    <input type="email" id="patientEmail" placeholder="jane@example.com" />
+                </div>
             </div>
 
             <!-- Consent Content -->
@@ -134,6 +138,18 @@
     const roomParam  = urlParams.get('room');
     const pwdParam   = urlParams.get('pwd');   // password embedded in patient link
     const meetingUrl = roomParam ? '/?room=' + encodeURIComponent(roomParam) : null;
+
+    // Pre-fill name and email from URL params (from admin-generated links)
+    const nameParam  = urlParams.get('name');
+    const emailParam = urlParams.get('email');
+    if (nameParam) {
+        const parts = nameParam.trim().split(' ');
+        document.getElementById('firstName').value = parts[0] || '';
+        document.getElementById('lastName').value  = parts.slice(1).join(' ') || '';
+    }
+    if (emailParam) {
+        document.getElementById('patientEmail').value = emailParam;
+    }
 
     if (roomParam) {
         const notice = document.getElementById('meeting-notice');
@@ -211,6 +227,7 @@
                     lastName:  document.getElementById('lastName').value,
                     date:      document.getElementById('date').value,
                     signature: sig,
+                    email:     document.getElementById('patientEmail').value.trim() || undefined,
                     roomName:  roomParam || undefined
                 })
             });

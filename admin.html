@@ -314,6 +314,35 @@
                     </div>
                 </div>
 
+                <!-- Post-Visit Email (SMTP) -->
+                <div class="settings-grid" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+                    <div class="form-group full" style="margin-bottom:6px;">
+                        <label style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;"><i class="fas fa-envelope" style="color:var(--teal);"></i> Post-Visit Follow-up Email (SMTP)</label>
+                        <p style="font-size:12px;color:var(--text-2);margin:4px 0 0;">When configured, patients automatically receive a visit summary email after each consultation ends.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-smtp-host">SMTP Host</label>
+                        <input type="text" id="cfg-smtp-host" placeholder="smtp.gmail.com" />
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-smtp-port">SMTP Port</label>
+                        <input type="number" id="cfg-smtp-port" placeholder="587" />
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-smtp-user">SMTP Username</label>
+                        <input type="text" id="cfg-smtp-user" placeholder="you@gmail.com" />
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-smtp-pass">SMTP Password / App Password</label>
+                        <input type="password" id="cfg-smtp-pass" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="new-password" />
+                    </div>
+                    <div class="form-group full">
+                        <label for="cfg-smtp-from">From Address <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
+                        <input type="text" id="cfg-smtp-from" placeholder='TeleHealth Connect &lt;you@gmail.com&gt;' />
+                        <div style="font-size:11px;color:var(--text-3);margin-top:4px;"><i class="fas fa-info-circle" style="margin-right:3px;"></i>Gmail users: generate an App Password at myaccount.google.com &rarr; Security &rarr; App Passwords.</div>
+                    </div>
+                </div>
+
                 <div class="settings-save-row">
                     <button id="save-settings-btn" class="btn-primary" style="gap:8px;">
                         <i class="fas fa-floppy-disk"></i> Save Settings
@@ -589,8 +618,9 @@
                 const durStr = m.duration_seconds != null
                     ? `<span style="color:var(--teal);"><i class="fas fa-clock"></i> ${fmtDuration(m.duration_seconds)}</span>`
                     : (m.started_at ? '<span style="color:var(--text-2);font-size:11px;">In progress</span>' : '');
-                const summaryId = `summary-${i}`;
+                const summaryId   = `summary-${i}`;
                 const transcriptId = `transcript-${i}`;
+                const notesId      = `notes-${i}`;
                 const summaryBlock = m.summary ? `
                     <div class="meeting-summary-toggle" onclick="toggleSummary('${summaryId}')">
                         <i class="fas fa-robot" style="color:var(--teal);"></i> AI Summary
@@ -603,6 +633,12 @@
                         <i class="fas fa-chevron-down summary-chevron" id="chev-${transcriptId}"></i>
                     </div>
                     <div class="meeting-summary-body" id="${transcriptId}" style="display:none;padding:0;background:none;border:none;"></div>`;
+                const notesBlock = m.soap_notes ? `
+                    <div class="meeting-summary-toggle" onclick="toggleSummary('${notesId}')">
+                        <i class="fas fa-notes-medical" style="color:#a78bfa;"></i> SOAP Notes
+                        <i class="fas fa-chevron-down summary-chevron" id="chev-${notesId}"></i>
+                    </div>
+                    <div class="meeting-summary-body" id="${notesId}" style="display:none;">${renderSoapNotes(m.soap_notes)}</div>` : '';
                 return `
                 <div class="data-item meeting-item-card">
                     <div style="width:100%;">
@@ -612,12 +648,14 @@
                                 <div class="item-meta">${new Date(m.created_at).toLocaleString()}${expiryStr ? ' &nbsp;·&nbsp; ' + expiryStr : ''}${durStr ? ' &nbsp;·&nbsp; ' + durStr : ''}</div>
                             </div>
                             <div style="display:flex;gap:8px;flex-shrink:0;">
+                                <button class="join-host-btn" onclick="openInviteModal('${m.room_name}', '${m.password || ''}')" title="Generate patient consent link"><i class="fas fa-user-plus"></i></button>
                                 <button class="join-host-btn" onclick="copyRoomLink('${m.room_name}', '${m.password || ''}')" title="Copy patient link"><i class="fas fa-copy"></i></button>
                                 <a href="/host/${encodeURIComponent(m.room_name)}" target="_blank" class="join-host-btn primary" title="Join as Host"><i class="fas fa-arrow-right-to-bracket"></i> Join as Host</a>
                             </div>
                         </div>
                         ${summaryBlock}
                         ${transcriptBlock}
+                        ${notesBlock}
                     </div>
                 </div>`;
             }).join('');
@@ -631,6 +669,27 @@
         const open = el.style.display === 'none';
         el.style.display = open ? 'block' : 'none';
         if (chev) chev.style.transform = open ? 'rotate(180deg)' : '';
+    }
+
+    function renderSoapNotes(raw) {
+        if (!raw) return '<em style="color:var(--text-2);">No notes recorded.</em>';
+        try {
+            const n = JSON.parse(raw);
+            const sections = [
+                { letter: 'S', label: 'Subjective', value: n.s },
+                { letter: 'O', label: 'Objective',  value: n.o },
+                { letter: 'A', label: 'Assessment', value: n.a },
+                { letter: 'P', label: 'Plan',       value: n.p },
+            ].filter(x => x.value && x.value.trim());
+            if (!sections.length) return '<em style="color:var(--text-2);">No notes recorded.</em>';
+            return sections.map(x => `
+                <div style="margin-bottom:10px;">
+                    <div style="font-size:11px;font-weight:700;color:#a78bfa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">[${x.letter}] ${x.label}</div>
+                    <div style="font-size:13px;color:var(--text-1);line-height:1.6;white-space:pre-wrap;">${x.value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+                </div>`).join('');
+        } catch(e) {
+            return `<pre style="font-size:12px;white-space:pre-wrap;color:var(--text-2);">${raw}</pre>`;
+        }
     }
 
     async function loadTranscript(roomName, containerId) {
@@ -880,6 +939,11 @@
                 document.getElementById('cfg-logo').value = s.company_logo;
                 applyLogo(s.company_logo);
             }
+            if (s.smtp_host) document.getElementById('cfg-smtp-host').value = s.smtp_host;
+            if (s.smtp_port) document.getElementById('cfg-smtp-port').value = s.smtp_port;
+            if (s.smtp_user) document.getElementById('cfg-smtp-user').value = s.smtp_user;
+            if (s.smtp_pass) document.getElementById('cfg-smtp-pass').value = s.smtp_pass;
+            if (s.smtp_from) document.getElementById('cfg-smtp-from').value = s.smtp_from;
         } catch(e) { console.error('loadSettings:', e); }
     }
 
@@ -922,7 +986,12 @@
                     timezone:     document.getElementById('cfg-timezone').value,
                     contact_email:document.getElementById('cfg-email').value.trim(),
                     contact_phone:document.getElementById('cfg-phone').value.trim(),
-                    company_logo: document.getElementById('cfg-logo').value.trim()
+                    company_logo: document.getElementById('cfg-logo').value.trim(),
+                    smtp_host:    document.getElementById('cfg-smtp-host').value.trim(),
+                    smtp_port:    document.getElementById('cfg-smtp-port').value.trim(),
+                    smtp_user:    document.getElementById('cfg-smtp-user').value.trim(),
+                    smtp_pass:    document.getElementById('cfg-smtp-pass').value.trim(),
+                    smtp_from:    document.getElementById('cfg-smtp-from').value.trim()
                 })
             });
             if (!res.ok) throw new Error('Save failed');
@@ -945,6 +1014,70 @@
     });
 
     checkAuth();
+
+    /* ─── Invite Patient modal JS ─── */
+    let _inviteRoom = '';
+
+    window.openInviteModal = function(roomName) {
+        _inviteRoom = roomName;
+        document.getElementById('invite-name').value  = '';
+        document.getElementById('invite-email').value = '';
+        updateInviteLink();
+        document.getElementById('invite-patient-modal').style.display = 'flex';
+    };
+
+    window.closeInviteModal = function() {
+        document.getElementById('invite-patient-modal').style.display = 'none';
+    };
+
+    function updateInviteLink() {
+        const base  = window.location.origin + '/consent?room=' + encodeURIComponent(_inviteRoom);
+        const name  = document.getElementById('invite-name').value.trim();
+        const email = document.getElementById('invite-email').value.trim();
+        let url = base;
+        if (name)  url += '&name='  + encodeURIComponent(name);
+        if (email) url += '&email=' + encodeURIComponent(email);
+        document.getElementById('invite-link-output').value = url;
+    }
+
+    window.copyInviteLink = function() {
+        updateInviteLink();
+        navigator.clipboard.writeText(document.getElementById('invite-link-output').value)
+            .then(() => { showToast('Patient consent link copied!'); closeInviteModal(); });
+    };
+
+    document.getElementById('invite-name').addEventListener('input', updateInviteLink);
+    document.getElementById('invite-email').addEventListener('input', updateInviteLink);
 </script>
+
+<!-- Invite Patient Modal -->
+<div id="invite-patient-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:3000;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px;width:100%;max-width:450px;box-shadow:0 24px 60px rgba(0,0,0,.6);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <h3 style="margin:0;font-size:1.05rem;"><i class="fas fa-user-plus" style="color:var(--teal);margin-right:8px;"></i>Send Consent Form to Patient</h3>
+            <button onclick="closeInviteModal()" style="background:none;border:none;color:var(--text-2);cursor:pointer;font-size:1.2rem;padding:4px;"><i class="fas fa-times"></i></button>
+        </div>
+        <p style="font-size:13px;color:var(--text-2);margin:0 0 20px;">The link opens a pre-filled consent form. The patient only needs to sign and submit.</p>
+        <div class="form-group" style="margin-bottom:12px;">
+            <label>Patient Full Name <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
+            <input type="text" id="invite-name" placeholder="e.g. Jane Doe" />
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+            <label>Patient Email <span style="color:var(--text-3);font-weight:400;">(optional — receives visit summary after call)</span></label>
+            <input type="email" id="invite-email" placeholder="jane@example.com" />
+        </div>
+        <div class="form-group" style="margin-bottom:18px;">
+            <label>Generated Link</label>
+            <div style="display:flex;gap:8px;">
+                <input type="text" id="invite-link-output" readonly style="flex:1;font-size:12px;color:var(--teal);background:rgba(20,184,166,.06);cursor:text;" onclick="this.select();" />
+                <button class="join-host-btn" onclick="navigator.clipboard.writeText(document.getElementById('invite-link-output').value).then(()=>showToast('Copied!'))" title="Copy"><i class="fas fa-copy"></i></button>
+            </div>
+        </div>
+        <button class="btn-primary" style="width:100%;justify-content:center;" onclick="copyInviteLink()">
+            <i class="fas fa-paper-plane"></i> Copy &amp; Share Link
+        </button>
+    </div>
+</div>
+
 </body>
 </html>

@@ -792,7 +792,9 @@ function startCallSession() {
     // Show host-only buttons
     if (isHost) {
         document.getElementById('end-meeting-button').style.display = '';
+        document.getElementById('notes-toggle-button').style.display = '';
         document.getElementById('raise-hand-button').style.display = 'none';
+        loadNotesFromServer();
     }
 }
 
@@ -948,5 +950,84 @@ socket.on('meeting-ended', () => {
     Object.values(peers).forEach(pc => pc.close());
     videoChatContainer.style.display = 'none';
     document.getElementById('meeting-ended-overlay').style.display = 'flex';
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   FEATURE: SOAP Notes (host-only, auto-saved per room)
+   ══════════════════════════════════════════════════════════════════════ */
+const notesToggleBtn = document.getElementById('notes-toggle-button');
+const notesPanel     = document.getElementById('notes-panel');
+const notesCloseBtn  = document.getElementById('notes-close-btn');
+
+let notesOpen      = false;
+let notesSaveTimer = null;
+let notesLoaded    = false;
+
+notesToggleBtn.addEventListener('click', () => {
+    notesOpen = !notesOpen;
+    notesPanel.classList.toggle('visible', notesOpen);
+    notesToggleBtn.classList.toggle('active', notesOpen);
+});
+
+notesCloseBtn.addEventListener('click', () => {
+    notesOpen = false;
+    notesPanel.classList.remove('visible');
+    notesToggleBtn.classList.remove('active');
+});
+
+function scheduleNotesSave() {
+    const status = document.getElementById('notes-save-status');
+    if (status) status.textContent = 'Saving…';
+    if (notesSaveTimer) clearTimeout(notesSaveTimer);
+    notesSaveTimer = setTimeout(saveNotes, 1500);
+}
+
+async function saveNotes() {
+    if (!roomName) return;
+    const notes = {
+        s: document.getElementById('soap-s').value,
+        o: document.getElementById('soap-o').value,
+        a: document.getElementById('soap-a').value,
+        p: document.getElementById('soap-p').value,
+    };
+    const status = document.getElementById('notes-save-status');
+    try {
+        const res = await fetch(`/api/meetings/${encodeURIComponent(roomName)}/notes`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: JSON.stringify(notes) }),
+            credentials: 'include',
+        });
+        if (res.ok) {
+            if (status) { status.textContent = 'Saved ✓'; setTimeout(() => { if (status) status.textContent = ''; }, 2000); }
+        } else {
+            if (status) status.textContent = 'Save failed';
+        }
+    } catch(e) {
+        if (status) status.textContent = 'Offline';
+    }
+}
+
+async function loadNotesFromServer() {
+    if (!roomName) return;
+    try {
+        const res = await fetch(`/api/meetings/${encodeURIComponent(roomName)}/notes`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.notes) {
+            let n;
+            try { n = JSON.parse(data.notes); } catch(e) { n = { s: data.notes, o: '', a: '', p: '' }; }
+            document.getElementById('soap-s').value = n.s || '';
+            document.getElementById('soap-o').value = n.o || '';
+            document.getElementById('soap-a').value = n.a || '';
+            document.getElementById('soap-p').value = n.p || '';
+        }
+        notesLoaded = true;
+    } catch(e) { /* silent */ }
+}
+
+['soap-s', 'soap-o', 'soap-a', 'soap-p'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', scheduleNotesSave);
 });
 
