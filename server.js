@@ -319,8 +319,8 @@ app.get('/api/analytics', requireAdmin, (req, res) => {
   });
 });
 
-// SOAP Notes — per room
-app.get('/api/meetings/:roomName/notes', requireAdmin, (req, res) => {
+// SOAP Notes — accessible by the host mid-call (no admin auth required; room name is the secret)
+app.get('/api/meetings/:roomName/notes', (req, res) => {
   db.get(
     `SELECT soap_notes AS notes FROM meetings WHERE room_name = ?`,
     [req.params.roomName],
@@ -331,7 +331,7 @@ app.get('/api/meetings/:roomName/notes', requireAdmin, (req, res) => {
   );
 });
 
-app.put('/api/meetings/:roomName/notes', requireAdmin, (req, res) => {
+app.put('/api/meetings/:roomName/notes', (req, res) => {
   const { notes } = req.body;
   // Try update first; if no row exists (unregistered room), insert one
   db.run(

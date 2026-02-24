@@ -439,15 +439,26 @@ video { width: 100%; height: 100%; object-fit: cover; background: #000; }
 
 .room-header {
     position: absolute; top: 18px; left: 18px;
-    background: rgba(6,14,28,.82);
+    background: rgba(6,14,28,.88);
     padding: 8px 16px;
     border-radius: var(--r-md);
     display: flex; gap: 10px; align-items: center;
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(12px);
     border: 1px solid var(--border);
     z-index: 100;
+    max-width: calc(100vw - 40px);
 }
 .room-header h2 { margin: 0; font-size: 0.9rem; font-weight: 600; }
+.room-company-name {
+    font-size: 10px; font-weight: 700;
+    color: var(--teal); letter-spacing: .1em;
+    text-transform: uppercase;
+    border-right: 1px solid rgba(255,255,255,.12);
+    padding-right: 10px;
+    white-space: nowrap;
+    display: none; /* hidden until populated by JS */
+}
+.room-company-name:not(:empty) { display: inline; }
 .status-indicator { color: var(--green); font-size: 0.8rem; font-weight: 700; animation: pulse 2s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 

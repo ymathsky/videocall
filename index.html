@@ -225,6 +225,7 @@
         
         <!-- Room Header -->
         <div class="room-header">
+            <span id="room-company-name" class="room-company-name"></span>
             <i class="fas fa-heartbeat" style="color:var(--teal);font-size:0.85rem;"></i>
             <h2 id="room-display-name">Consultation Room</h2>
             <span class="status-indicator">● Live</span>
@@ -293,7 +294,6 @@
 
         <!-- SOAP Notes Panel (host only) -->
         <div id="notes-panel">
-            <div id="notes-header">
             <div id="notes-header">
                 <div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;">
                     <i class="fas fa-notes-medical" style="color:#a78bfa;"></i> SOAP Notes
@@ -364,6 +364,8 @@
                 document.title = s.company_name + ' — Secure Video Consultations';
                 const ccn = document.getElementById('chat-company-name');
                 if (ccn) ccn.textContent = s.company_name;
+                const rcn = document.getElementById('room-company-name');
+                if (rcn) rcn.textContent = s.company_name;
             }
         }).catch(() => {});
     </script>
