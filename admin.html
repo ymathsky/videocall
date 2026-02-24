@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TeleHealth Admin</title>
+    <link id="dynamic-favicon" rel="icon" href="data:,">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -44,7 +45,7 @@
     <!-- Sidebar -->
     <aside class="admin-sidebar">
         <div class="sidebar-logo">
-            <div class="sidebar-logo-icon"><i class="fas fa-heartbeat"></i></div>
+            <div class="sidebar-logo-icon" id="sidebar-logo-icon"><i class="fas fa-heartbeat"></i></div>
             <div class="sidebar-logo-text">
                 <strong class="dynamic-company-name">TeleHealth Connect</strong>
                 <span>Admin Portal</span>
@@ -280,8 +281,8 @@
                         <label for="cfg-timezone">Timezone</label>
                         <select id="cfg-timezone" class="form-select">
                             <option value="UTC">UTC (UTC+0)</option>
-                            <option value="America/New_York">US Eastern (UTC‑5/‑4)</option>
-                            <option value="America/Chicago">US Central (UTC‑6/‑5)</option>
+                            <option value="America/New_York">US Eastern / New York (UTC‑5/‑4)</option>
+                            <option value="America/Chicago">US Central / Chicago (UTC‑6/‑5)</option>
                             <option value="America/Denver">US Mountain (UTC‑7/‑6)</option>
                             <option value="America/Los_Angeles">US Pacific (UTC‑8/‑7)</option>
                             <option value="Europe/London">Europe/London (UTC+0/+1)</option>
@@ -302,6 +303,14 @@
                     <div class="form-group full">
                         <label for="cfg-phone">Contact Phone</label>
                         <input type="tel" id="cfg-phone" placeholder="+1 (555) 000-0000" />
+                    </div>
+                    <div class="form-group full">
+                        <label for="cfg-logo">Company Logo URL <span style="color:var(--text-3);font-weight:400;">(used in sidebar &amp; browser tab)</span></label>
+                        <input type="url" id="cfg-logo" placeholder="https://yoursite.com/logo.png" />
+                        <div style="font-size:11px;color:var(--text-3);margin-top:4px;"><i class="fas fa-info-circle" style="margin-right:3px;"></i>Use a direct image URL (PNG/JPG/SVG). Recommended size: 40&times;40px or a square icon.</div>
+                        <div id="cfg-logo-preview" style="margin-top:10px;display:none;">
+                            <img id="cfg-logo-img" src="" alt="Logo preview" style="height:48px;border-radius:8px;border:1px solid var(--border);padding:4px;background:var(--bg);" />
+                        </div>
                     </div>
                 </div>
 
@@ -826,13 +835,45 @@
             if (s.company_name) {
                 document.getElementById('cfg-company').value = s.company_name;
                 document.querySelectorAll('.dynamic-company-name').forEach(el => el.textContent = s.company_name);
+                document.title = s.company_name + ' — Admin';
             }
             if (s.tagline)       document.getElementById('cfg-tagline').value = s.tagline;
             if (s.timezone)      document.getElementById('cfg-timezone').value = s.timezone;
             if (s.contact_email) document.getElementById('cfg-email').value = s.contact_email;
             if (s.contact_phone) document.getElementById('cfg-phone').value = s.contact_phone;
+            if (s.company_logo) {
+                document.getElementById('cfg-logo').value = s.company_logo;
+                applyLogo(s.company_logo);
+            }
         } catch(e) { console.error('loadSettings:', e); }
     }
+
+    function applyLogo(url) {
+        // Sidebar icon
+        const iconEl = document.getElementById('sidebar-logo-icon');
+        if (iconEl) {
+            if (url) {
+                iconEl.innerHTML = `<img src="${url}" alt="logo" style="width:36px;height:36px;object-fit:contain;border-radius:6px;" onerror="this.parentElement.innerHTML='<i class=\'fas fa-heartbeat\'></i>'">`;
+            } else {
+                iconEl.innerHTML = '<i class="fas fa-heartbeat"></i>';
+            }
+        }
+        // Favicon dynamic
+        const fav = document.getElementById('dynamic-favicon');
+        if (fav) fav.href = url || 'data:,';
+        // Logo preview box
+        const preview = document.getElementById('cfg-logo-preview');
+        const img     = document.getElementById('cfg-logo-img');
+        if (preview && img) {
+            if (url) { img.src = url; preview.style.display = ''; }
+            else { preview.style.display = 'none'; }
+        }
+    }
+
+    // Live preview as user types logo URL
+    document.getElementById('cfg-logo').addEventListener('input', function() {
+        applyLogo(this.value.trim());
+    });
 
     document.getElementById('save-settings-btn').addEventListener('click', async () => {
         const hint = document.getElementById('settings-hint');
@@ -845,7 +886,8 @@
                     tagline:      document.getElementById('cfg-tagline').value.trim(),
                     timezone:     document.getElementById('cfg-timezone').value,
                     contact_email:document.getElementById('cfg-email').value.trim(),
-                    contact_phone:document.getElementById('cfg-phone').value.trim()
+                    contact_phone:document.getElementById('cfg-phone').value.trim(),
+                    company_logo: document.getElementById('cfg-logo').value.trim()
                 })
             });
             if (!res.ok) throw new Error('Save failed');
@@ -853,7 +895,12 @@
             hint.textContent = 'Saved ✓';
             hint.style.color = 'var(--green)';
             const name = document.getElementById('cfg-company').value.trim();
-            if (name) document.querySelectorAll('.dynamic-company-name').forEach(el => el.textContent = name);
+            if (name) {
+                document.querySelectorAll('.dynamic-company-name').forEach(el => el.textContent = name);
+                document.title = name + ' — Admin';
+            }
+            const logo = document.getElementById('cfg-logo').value.trim();
+            applyLogo(logo);
             setTimeout(() => { hint.textContent = ''; }, 3000);
         } catch(e) {
             showToast('Could not save settings');

@@ -122,7 +122,8 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
         ['tagline',       'Secure Video Consultations'],
         ['timezone',      'UTC'],
         ['contact_email', ''],
-        ['contact_phone', '']
+        ['contact_phone', ''],
+        ['company_logo',  '']
       ];
       defaults.forEach(([k, v]) => {
         db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, [k, v]);
@@ -313,7 +314,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', requireAdmin, (req, res) => {
-  const allowed = ['company_name', 'tagline', 'timezone', 'contact_email', 'contact_phone'];
+  const allowed = ['company_name', 'tagline', 'timezone', 'contact_email', 'contact_phone', 'company_logo'];
   const updates = Object.entries(req.body).filter(([k]) => allowed.includes(k));
   if (!updates.length) return res.status(400).json({ error: 'No valid settings provided' });
   const tasks = updates.map(([k, v]) =>
