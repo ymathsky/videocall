@@ -155,6 +155,19 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
       used INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // Staff / provider profiles
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT DEFAULT '',
+      role TEXT DEFAULT 'Doctor',
+      specialty TEXT DEFAULT '',
+      phone TEXT DEFAULT '',
+      bio TEXT DEFAULT '',
+      photo_url TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
   }
 });
 
@@ -211,6 +224,11 @@ app.post('/api/admin/logout', requireAdmin, (req, res) => {
 // Route for consent form
 app.get('/consent', (req, res) => {
   res.sendFile(__dirname + '/consent.html');
+});
+
+// Public provider profile page
+app.get('/profile/:id', (req, res) => {
+  res.sendFile(__dirname + '/profile.html');
 });
 
 // API Routes
@@ -307,6 +325,61 @@ app.post('/api/settings', requireAdmin, (req, res) => {
   Promise.all(tasks)
     .then(() => res.json({ message: 'Settings saved' }))
     .catch(e => res.status(500).json({ error: e.message }));
+});
+
+// ── Users (staff / providers) CRUD ──────────────────────────────────────────
+app.get('/api/users', requireAdmin, (req, res) => {
+  db.all(`SELECT * FROM users ORDER BY name ASC`, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+app.post('/api/users', requireAdmin, (req, res) => {
+  const { name, email, role, specialty, phone, bio, photo_url } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+  db.run(
+    `INSERT INTO users (name, email, role, specialty, phone, bio, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [name, email||'', role||'Doctor', specialty||'', phone||'', bio||'', photo_url||''],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: this.lastID, message: 'User created' });
+    }
+  );
+});
+
+// Public read — no auth required (for shareable profile pages)
+app.get('/api/users/public/:id', (req, res) => {
+  db.get(
+    `SELECT id, name, email, role, specialty, phone, bio, photo_url, created_at FROM users WHERE id = ?`,
+    [req.params.id],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!row) return res.status(404).json({ error: 'User not found' });
+      res.json(row);
+    }
+  );
+});
+
+app.put('/api/users/:id', requireAdmin, (req, res) => {
+  const { name, email, role, specialty, phone, bio, photo_url } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+  db.run(
+    `UPDATE users SET name=?, email=?, role=?, specialty=?, phone=?, bio=?, photo_url=? WHERE id=?`,
+    [name, email||'', role||'Doctor', specialty||'', phone||'', bio||'', photo_url||'', req.params.id],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
+      res.json({ message: 'User updated' });
+    }
+  );
+});
+
+app.delete('/api/users/:id', requireAdmin, (req, res) => {
+  db.run(`DELETE FROM users WHERE id=?`, [req.params.id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'User deleted' });
+  });
 });
 
 const activeRooms  = {}; // { roomName: { password, hostId, participants:Set, expiresAt, startedAt } }

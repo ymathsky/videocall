@@ -68,6 +68,9 @@
         <button class="sidebar-btn" data-section="settings-section">
             <i class="fas fa-gear"></i> Settings
         </button>
+        <button class="sidebar-btn" data-section="users-section">
+            <i class="fas fa-users"></i> Users
+        </button>
 
         <div class="sidebar-section-label">Quick Links</div>
         <a href="/" class="sidebar-btn" style="text-decoration:none;display:flex;align-items:center;gap:10px;color:var(--text-2);">
@@ -118,8 +121,15 @@
                 <div class="stat-card">
                     <div class="stat-icon amber"><i class="fas fa-clock"></i></div>
                     <div class="stat-info">
-                        <strong id="stat-today">â€”</strong>
+                        <strong id="stat-today">&mdash;</strong>
                         <span>Today's Meetings</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon teal" style="background:rgba(124,58,237,.12);color:#a78bfa;"><i class="fas fa-users"></i></div>
+                    <div class="stat-info">
+                        <strong id="stat-users">&mdash;</strong>
+                        <span>Staff / Providers</span>
                     </div>
                 </div>
             </div>
@@ -304,6 +314,22 @@
             </div>
         </div>
 
+        <!-- Users section -->
+        <div id="users-section" class="admin-section">
+            <div class="admin-topbar">
+                <div class="admin-topbar-title">
+                    <h2>Users</h2>
+                    <span>Manage staff and provider profiles</span>
+                </div>
+                <div class="admin-topbar-actions">
+                    <button class="sidebar-btn" onclick="openUserModal()" style="background:var(--teal);color:#fff;border-color:transparent;gap:6px;">
+                        <i class="fas fa-plus"></i> Add User
+                    </button>
+                </div>
+            </div>
+            <div id="users-grid" class="users-grid"></div>
+        </div>
+
         <footer class="site-footer" style="margin-top:32px;">
             <span class="footer-company dynamic-company-name">TeleHealth Connect</span>
             <span class="footer-sep">&middot;</span>
@@ -314,6 +340,61 @@
 </div>
 
 <div id="toast"></div>
+
+<!-- User Add/Edit Modal -->
+<div id="user-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px 28px 22px;width:100%;max-width:500px;box-shadow:0 24px 60px rgba(0,0,0,.6);max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 id="user-modal-title" style="margin:0;font-size:1.1rem;">Add User</h3>
+            <button onclick="closeUserModal()" style="background:none;border:none;color:var(--text-2);cursor:pointer;font-size:1.2rem;padding:4px;"><i class="fas fa-times"></i></button>
+        </div>
+        <input type="hidden" id="user-modal-id" value="" />
+        <div class="form-group">
+            <label>Full Name <span style="color:#ef4444;">*</span></label>
+            <input type="text" id="um-name" placeholder="Dr. Jane Smith" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+                <label>Role</label>
+                <select id="um-role" class="form-select">
+                    <option>Doctor</option>
+                    <option>Nurse</option>
+                    <option>Therapist</option>
+                    <option>Specialist</option>
+                    <option>Admin</option>
+                    <option>Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Specialty</label>
+                <input type="text" id="um-specialty" placeholder="e.g. Cardiology" />
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="um-email" placeholder="doctor@clinic.com" />
+        </div>
+        <div class="form-group">
+            <label>Phone</label>
+            <input type="tel" id="um-phone" placeholder="+1 (555) 000-0000" />
+        </div>
+        <div class="form-group">
+            <label>Bio</label>
+            <textarea id="um-bio" rows="3" placeholder="Short professional biography..." style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);color:var(--text);padding:10px 12px;font-size:13px;resize:vertical;box-sizing:border-box;font-family:inherit;"></textarea>
+        </div>
+        <div class="form-group">
+            <label>Photo URL <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
+            <input type="url" id="um-photo" placeholder="https://..." />
+        </div>
+        <div id="user-modal-error" style="color:#ef4444;font-size:13px;margin-bottom:10px;min-height:18px;"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button onclick="closeUserModal()" class="secondary-btn" style="padding:9px 18px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);">Cancel</button>
+            <button onclick="saveUser()" class="btn-primary" style="padding:9px 18px;gap:6px;">
+                <i class="fas fa-floppy-disk"></i> <span id="user-modal-save-label">Save User</span>
+            </button>
+        </div>
+    </div>
+</div>
 
 <script>
     /* â”€â”€â”€ DOM refs â”€â”€â”€ */
@@ -343,6 +424,7 @@
         const targetSec = document.getElementById(sectionId);
         if (targetBtn) targetBtn.classList.add('active');
         if (targetSec) targetSec.classList.add('active');
+        if (sectionId === 'users-section') loadUsers();
     }
 
     /* â”€â”€â”€ Auth â”€â”€â”€ */
@@ -573,7 +655,7 @@
     function showDashboard() {
         loginShell.style.display = 'none';
         adminShell.classList.add('active');
-        loadOverview(); loadMeetings(); loadConsents(); loadSettings();
+        loadOverview(); loadMeetings(); loadConsents(); loadSettings(); loadUsers();
     }
 
     async function checkAuth() {
@@ -592,6 +674,131 @@
 
     function copyConsentLink() {
         navigator.clipboard.writeText(window.location.origin + '/consent').then(() => showToast('Consent link copied!'));
+    }
+
+    /* ─── Users ─── */
+    let usersCache = [];
+    const AVATAR_COLORS = ['#0d9488','#2563eb','#7c3aed','#db2777','#ea580c','#16a34a'];
+    function _avatarColor(name) {
+        let h = 0;
+        for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
+        return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+    }
+    function _initials(name) {
+        return name.split(' ').filter(Boolean).map(w => w[0]).slice(0,2).join('').toUpperCase();
+    }
+
+    async function loadUsers() {
+        try {
+            const users = await (await apiFetch('/api/users')).json();
+            usersCache = users;
+            const el = document.getElementById('stat-users');
+            if (el) el.textContent = users.length;
+            renderUserCards(users);
+        } catch(e) { console.error('loadUsers:', e); }
+    }
+
+    function renderUserCards(users) {
+        const grid = document.getElementById('users-grid');
+        if (!grid) return;
+        if (!users.length) {
+            grid.innerHTML = '<div class="muted" style="padding:24px 4px;">No users yet. Click <strong>Add User</strong> to create the first provider profile.</div>';
+            return;
+        }
+        grid.innerHTML = users.map(u => {
+            const initials = _initials(u.name);
+            const color    = _avatarColor(u.name);
+            const avatar   = u.photo_url
+                ? `<img src="${u.photo_url}" alt="${u.name}" style="width:56px;height:56px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.replaceWith(Object.assign(document.createElement('div'),{textContent:'${initials}',style:'width:56px;height:56px;border-radius:50%;background:${color};color:#fff;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;'}))" />`
+                : `<div style="width:56px;height:56px;border-radius:50%;background:${color};color:#fff;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${initials}</div>`;
+            return `
+            <div class="user-card">
+                <div style="display:flex;align-items:flex-start;gap:14px;">
+                    ${avatar}
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:700;font-size:1rem;">${u.name}</div>
+                        <div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                            <span style="background:rgba(13,148,136,.13);color:var(--teal);padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;">${u.role}</span>
+                            ${u.specialty ? `<span style="font-size:11px;color:var(--text-3);">${u.specialty}</span>` : ''}
+                        </div>
+                        ${u.bio ? `<div style="font-size:12px;color:var(--text-2);margin-top:7px;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${u.bio}</div>` : ''}
+                        <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;">
+                            ${u.email ? `<span style="font-size:11px;color:var(--text-3);"><i class="fas fa-envelope" style="margin-right:4px;"></i>${u.email}</span>` : ''}
+                            ${u.phone ? `<span style="font-size:11px;color:var(--text-3);"><i class="fas fa-phone" style="margin-right:4px;"></i>${u.phone}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);align-items:center;">
+                    <a href="/profile/${u.id}" target="_blank" class="secondary-btn" style="padding:6px 12px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:5px;">
+                        <i class="fas fa-id-card"></i> Profile
+                    </a>
+                    <button onclick="openUserModal(${u.id})" class="secondary-btn" style="padding:6px 12px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);font-size:12px;display:inline-flex;align-items:center;gap:5px;">
+                        <i class="fas fa-pencil"></i> Edit
+                    </button>
+                    <button onclick="deleteUser(${u.id})" class="secondary-btn" style="padding:6px 12px;border-radius:var(--r-md);border:1px solid rgba(239,68,68,.3);background:var(--bg);color:#ef4444;font-size:12px;display:inline-flex;align-items:center;gap:5px;margin-left:auto;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function openUserModal(idOrUndefined) {
+        const u = (idOrUndefined != null) ? usersCache.find(x => x.id === idOrUndefined) : null;
+        document.getElementById('user-modal-title').textContent      = u ? 'Edit User' : 'Add User';
+        document.getElementById('user-modal-save-label').textContent = u ? 'Save Changes' : 'Save User';
+        document.getElementById('user-modal-id').value       = u ? u.id : '';
+        document.getElementById('um-name').value             = u ? u.name        : '';
+        document.getElementById('um-role').value             = u ? u.role        : 'Doctor';
+        document.getElementById('um-specialty').value        = u ? (u.specialty  || '') : '';
+        document.getElementById('um-email').value            = u ? (u.email      || '') : '';
+        document.getElementById('um-phone').value            = u ? (u.phone      || '') : '';
+        document.getElementById('um-bio').value              = u ? (u.bio        || '') : '';
+        document.getElementById('um-photo').value            = u ? (u.photo_url  || '') : '';
+        document.getElementById('user-modal-error').textContent = '';
+        document.getElementById('user-modal').style.display = 'flex';
+        setTimeout(() => document.getElementById('um-name').focus(), 80);
+    }
+
+    function closeUserModal() {
+        document.getElementById('user-modal').style.display = 'none';
+    }
+
+    async function saveUser() {
+        const id   = document.getElementById('user-modal-id').value;
+        const name = document.getElementById('um-name').value.trim();
+        const errEl = document.getElementById('user-modal-error');
+        if (!name) { errEl.textContent = 'Full name is required.'; return; }
+        errEl.textContent = '';
+        const payload = {
+            name,
+            role:      document.getElementById('um-role').value,
+            specialty: document.getElementById('um-specialty').value.trim(),
+            email:     document.getElementById('um-email').value.trim(),
+            phone:     document.getElementById('um-phone').value.trim(),
+            bio:       document.getElementById('um-bio').value.trim(),
+            photo_url: document.getElementById('um-photo').value.trim()
+        };
+        try {
+            const url  = id ? `/api/users/${id}` : '/api/users';
+            const meth = id ? 'PUT' : 'POST';
+            const res  = await apiFetch(url, { method: meth, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            if (!res.ok) { const e = await res.json(); errEl.textContent = e.error || 'Save failed'; return; }
+            closeUserModal();
+            loadUsers();
+            showToast(id ? 'User updated!' : 'User added!');
+        } catch(e) { if (e.message !== 'session_expired') errEl.textContent = 'Network error.'; }
+    }
+
+    async function deleteUser(id) {
+        const u = usersCache.find(x => x.id === id);
+        if (!u || !confirm(`Delete "${u.name}"? This cannot be undone.`)) return;
+        try {
+            const res = await apiFetch(`/api/users/${id}`, { method: 'DELETE' });
+            if (!res.ok) { showToast('Delete failed'); return; }
+            loadUsers();
+            showToast('User deleted.');
+        } catch(e) { if (e.message !== 'session_expired') showToast('Delete failed.'); }
     }
 
     function fmtDuration(sec) {

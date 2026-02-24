@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Provider Profile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* ── Profile page overrides ── */
+        body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 40px 16px 60px; }
+
+        .profile-card {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--r-xl);
+            padding: 36px;
+            width: 100%; max-width: 560px;
+            box-shadow: 0 20px 60px rgba(0,0,0,.5);
+        }
+
+        .profile-avatar {
+            width: 96px; height: 96px; border-radius: 50%;
+            object-fit: cover; display: block; margin: 0 auto 20px;
+            border: 3px solid var(--border);
+        }
+        .profile-avatar-initials {
+            width: 96px; height: 96px; border-radius: 50%;
+            font-size: 36px; font-weight: 700; color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 20px;
+        }
+        .profile-name {
+            font-size: 1.6rem; font-weight: 700; text-align: center;
+            color: var(--text); margin: 0 0 6px;
+        }
+        .profile-role-badge {
+            display: inline-block;
+            background: rgba(13,148,136,.14); color: var(--teal);
+            padding: 3px 14px; border-radius: 20px;
+            font-size: 12px; font-weight: 700; letter-spacing: .04em;
+        }
+        .profile-specialty {
+            font-size: 14px; color: var(--text-2); margin-top: 6px;
+        }
+        .profile-divider {
+            border: none; border-top: 1px solid var(--border);
+            margin: 22px 0;
+        }
+        .profile-bio {
+            font-size: 14px; color: var(--text-2); line-height: 1.7;
+            white-space: pre-wrap;
+        }
+        .profile-contact-row {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 14px; color: var(--text-2); padding: 7px 0;
+            border-bottom: 1px solid rgba(255,255,255,.04);
+        }
+        .profile-contact-row i { width: 18px; color: var(--teal); text-align: center; }
+        .profile-contact-row a { color: var(--text-2); text-decoration: none; }
+        .profile-contact-row a:hover { color: var(--teal); text-decoration: underline; }
+
+        .profile-cta {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            margin-top: 28px; flex-wrap: wrap;
+        }
+        .profile-cta a {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 12px 22px; border-radius: var(--r-md);
+            font-size: 14px; font-weight: 600; text-decoration: none;
+            transition: opacity 0.2s, transform 0.15s;
+        }
+        .profile-cta a:hover { opacity: .88; transform: translateY(-1px); }
+        .profile-cta .btn-book {
+            background: var(--teal); color: #fff;
+        }
+        .profile-cta .btn-home {
+            background: var(--bg); color: var(--text-2);
+            border: 1px solid var(--border);
+        }
+
+        .profile-branding {
+            margin-top: 32px; font-size: 12px; color: var(--text-3); text-align: center;
+        }
+        .profile-branding strong { color: var(--text-2); }
+
+        #profile-not-found {
+            display: none; text-align: center; padding: 60px 20px;
+            color: var(--text-2);
+        }
+        #profile-not-found i { font-size: 3rem; color: var(--text-3); margin-bottom: 16px; }
+        #profile-loading { text-align: center; padding: 60px 20px; color: var(--text-3); }
+    </style>
+</head>
+<body>
+
+<div id="profile-loading">
+    <i class="fas fa-circle-notch fa-spin" style="font-size:2rem;color:var(--teal);"></i>
+    <p style="margin-top:12px;">Loading profile…</p>
+</div>
+
+<div id="profile-not-found">
+    <i class="fas fa-user-slash"></i>
+    <h2 style="margin:0 0 8px;">Profile Not Found</h2>
+    <p>This provider profile does not exist or has been removed.</p>
+    <a href="/" style="color:var(--teal);text-decoration:none;margin-top:12px;display:inline-block;"><i class="fas fa-arrow-left" style="margin-right:5px;"></i>Back to Home</a>
+</div>
+
+<div id="profile-wrap" style="display:none;width:100%;max-width:560px;">
+    <div class="profile-card">
+        <div id="profile-avatar-wrap" style="text-align:center;margin-bottom:4px;"></div>
+        <h1 id="profile-name" class="profile-name"></h1>
+        <div style="text-align:center;margin-bottom:4px;">
+            <span id="profile-role" class="profile-role-badge"></span>
+        </div>
+        <div id="profile-specialty" class="profile-specialty" style="text-align:center;"></div>
+
+        <hr class="profile-divider" id="profile-bio-divider" style="display:none;">
+        <p id="profile-bio" class="profile-bio" style="display:none;"></p>
+
+        <hr class="profile-divider" id="profile-contact-divider" style="display:none;">
+        <div id="profile-contact"></div>
+
+        <div class="profile-cta">
+            <a id="profile-book-btn" href="/consent" class="btn-book">
+                <i class="fas fa-calendar-plus"></i> Book a Consultation
+            </a>
+            <a href="/" class="btn-home">
+                <i class="fas fa-home"></i> Home
+            </a>
+        </div>
+    </div>
+
+    <div class="profile-branding" id="profile-branding">
+        Powered by <strong class="dynamic-company-name">TeleHealth Connect</strong>
+    </div>
+</div>
+
+<script>
+    const AVATAR_COLORS = ['#0d9488','#2563eb','#7c3aed','#db2777','#ea580c','#16a34a'];
+    function avatarColor(name) {
+        let h = 0;
+        for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
+        return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+    }
+    function initials(name) {
+        return name.split(' ').filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+    }
+
+    async function loadSettings() {
+        try {
+            const s = await (await fetch('/api/settings')).json();
+            if (s.company_name) {
+                document.querySelectorAll('.dynamic-company-name').forEach(el => el.textContent = s.company_name);
+                document.title = s.company_name + ' — Provider Profile';
+            }
+        } catch(e) {}
+    }
+
+    async function loadProfile() {
+        const id = location.pathname.split('/').pop();
+        try {
+            const res = await fetch('/api/users/public/' + id);
+            if (!res.ok) throw new Error('not found');
+            const u = await res.json();
+
+            document.title = u.name + ' — Provider Profile';
+
+            // Avatar
+            const avatarWrap = document.getElementById('profile-avatar-wrap');
+            if (u.photo_url) {
+                const img = document.createElement('img');
+                img.src = u.photo_url;
+                img.alt = u.name;
+                img.className = 'profile-avatar';
+                img.onerror = () => {
+                    img.remove();
+                    avatarWrap.appendChild(makeInitialsAvatar(u.name));
+                };
+                avatarWrap.appendChild(img);
+            } else {
+                avatarWrap.appendChild(makeInitialsAvatar(u.name));
+            }
+
+            document.getElementById('profile-name').textContent    = u.name;
+            document.getElementById('profile-role').textContent    = u.role;
+            document.getElementById('profile-specialty').textContent = u.specialty || '';
+            if (!u.specialty) document.getElementById('profile-specialty').style.display = 'none';
+
+            // Bio
+            if (u.bio) {
+                document.getElementById('profile-bio-divider').style.display = '';
+                const bioEl = document.getElementById('profile-bio');
+                bioEl.textContent = u.bio;
+                bioEl.style.display = '';
+            }
+
+            // Contact
+            const contactLines = [];
+            if (u.email) contactLines.push(`<div class="profile-contact-row"><i class="fas fa-envelope"></i><a href="mailto:${u.email}">${u.email}</a></div>`);
+            if (u.phone) contactLines.push(`<div class="profile-contact-row"><i class="fas fa-phone"></i><a href="tel:${u.phone}">${u.phone}</a></div>`);
+            if (contactLines.length) {
+                document.getElementById('profile-contact-divider').style.display = '';
+                document.getElementById('profile-contact').innerHTML = contactLines.join('');
+            }
+
+            document.getElementById('profile-loading').style.display = 'none';
+            document.getElementById('profile-wrap').style.display    = '';
+        } catch(e) {
+            document.getElementById('profile-loading').style.display = 'none';
+            document.getElementById('profile-not-found').style.display = '';
+        }
+    }
+
+    function makeInitialsAvatar(name) {
+        const div = document.createElement('div');
+        div.className = 'profile-avatar-initials';
+        div.style.background = avatarColor(name);
+        div.textContent = initials(name);
+        return div;
+    }
+
+    loadSettings();
+    loadProfile();
+</script>
+</body>
+</html>

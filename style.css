@@ -1094,3 +1094,22 @@ select.form-select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(
 }
 .transcript-time { font-size: 0.72rem; color: var(--text-2); }
 .transcript-text { margin-top: 3px; font-size: 0.82rem; color: var(--text-1); }
+
+/* ─── Users Grid ─── */
+.users-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    padding: 4px 0;
+}
+.user-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--r-xl);
+    padding: 18px 18px 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.user-card:hover {
+    border-color: rgba(20,184,166,.35);
+    box-shadow: 0 4px 20px rgba(0,0,0,.3);
+}
