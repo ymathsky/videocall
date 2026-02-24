@@ -395,6 +395,24 @@
             <label>Photo URL <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
             <input type="url" id="um-photo" placeholder="https://..." />
         </div>
+
+        <!-- Credentials divider -->
+        <div style="border-top:1px solid var(--border);margin:16px 0 14px;"></div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--teal);margin-bottom:12px;"><i class="fas fa-key" style="margin-right:5px;"></i>LOGIN CREDENTIALS</div>
+        <div class="form-group">
+            <label>Username <span style="color:#ef4444;">*</span></label>
+            <input type="text" id="um-username" placeholder="dr.smith" autocomplete="off" style="font-family:monospace;" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group">
+                <label id="um-pwd-label">Password <span style="color:#ef4444;">*</span></label>
+                <input type="password" id="um-password" autocomplete="new-password" />
+            </div>
+            <div class="form-group">
+                <label>Confirm Password</label>
+                <input type="password" id="um-password-confirm" autocomplete="new-password" />
+            </div>
+        </div>
         <div id="user-modal-error" style="color:#ef4444;font-size:13px;margin-bottom:10px;min-height:18px;"></div>
         <div style="display:flex;gap:10px;justify-content:flex-end;">
             <button onclick="closeUserModal()" class="secondary-btn" style="padding:9px 18px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);">Cancel</button>
@@ -729,6 +747,7 @@
                         <div style="margin-top:4px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                             <span style="background:rgba(13,148,136,.13);color:var(--teal);padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;">${u.role}</span>
                             ${u.specialty ? `<span style="font-size:11px;color:var(--text-3);">${u.specialty}</span>` : ''}
+                            ${u.username  ? `<span style="font-size:11px;color:var(--text-3);font-family:monospace;">@${u.username}</span>` : ''}
                         </div>
                         ${u.bio ? `<div style="font-size:12px;color:var(--text-2);margin-top:7px;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${u.bio}</div>` : ''}
                         <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;">
@@ -754,9 +773,10 @@
 
     function openUserModal(idOrUndefined) {
         const u = (idOrUndefined != null) ? usersCache.find(x => x.id === idOrUndefined) : null;
-        document.getElementById('user-modal-title').textContent      = u ? 'Edit User' : 'Add User';
-        document.getElementById('user-modal-save-label').textContent = u ? 'Save Changes' : 'Save User';
-        document.getElementById('user-modal-id').value       = u ? u.id : '';
+        const isEdit = !!u;
+        document.getElementById('user-modal-title').textContent      = isEdit ? 'Edit User' : 'Add User';
+        document.getElementById('user-modal-save-label').textContent = isEdit ? 'Save Changes' : 'Save User';
+        document.getElementById('user-modal-id').value       = u ? u.id          : '';
         document.getElementById('um-name').value             = u ? u.name        : '';
         document.getElementById('um-role').value             = u ? u.role        : 'Doctor';
         document.getElementById('um-specialty').value        = u ? (u.specialty  || '') : '';
@@ -764,6 +784,13 @@
         document.getElementById('um-phone').value            = u ? (u.phone      || '') : '';
         document.getElementById('um-bio').value              = u ? (u.bio        || '') : '';
         document.getElementById('um-photo').value            = u ? (u.photo_url  || '') : '';
+        document.getElementById('um-username').value         = u ? (u.username   || '') : '';
+        document.getElementById('um-password').value         = '';
+        document.getElementById('um-password-confirm').value = '';
+        // Password label: required on add, optional on edit
+        document.getElementById('um-pwd-label').innerHTML = isEdit
+            ? 'New Password <span style="color:var(--text-3);font-weight:400;">(leave blank to keep)</span>'
+            : 'Password <span style="color:#ef4444;">*</span>';
         document.getElementById('user-modal-error').textContent = '';
         document.getElementById('user-modal').style.display = 'flex';
         setTimeout(() => document.getElementById('um-name').focus(), 80);
@@ -774,13 +801,20 @@
     }
 
     async function saveUser() {
-        const id   = document.getElementById('user-modal-id').value;
-        const name = document.getElementById('um-name').value.trim();
-        const errEl = document.getElementById('user-modal-error');
-        if (!name) { errEl.textContent = 'Full name is required.'; return; }
+        const id       = document.getElementById('user-modal-id').value;
+        const name     = document.getElementById('um-name').value.trim();
+        const username = document.getElementById('um-username').value.trim().toLowerCase();
+        const password = document.getElementById('um-password').value;
+        const confirm  = document.getElementById('um-password-confirm').value;
+        const errEl    = document.getElementById('user-modal-error');
+        if (!name)     { errEl.textContent = 'Full name is required.'; return; }
+        if (!username) { errEl.textContent = 'Username is required.'; return; }
+        if (!id && !password) { errEl.textContent = 'Password is required for new users.'; return; }
+        if (password && password !== confirm) { errEl.textContent = 'Passwords do not match.'; return; }
+        if (password && password.length < 6)  { errEl.textContent = 'Password must be at least 6 characters.'; return; }
         errEl.textContent = '';
         const payload = {
-            name,
+            name, username,
             role:      document.getElementById('um-role').value,
             specialty: document.getElementById('um-specialty').value.trim(),
             email:     document.getElementById('um-email').value.trim(),
@@ -788,6 +822,7 @@
             bio:       document.getElementById('um-bio').value.trim(),
             photo_url: document.getElementById('um-photo').value.trim()
         };
+        if (password) payload.password = password;
         try {
             const url  = id ? `/api/users/${id}` : '/api/users';
             const meth = id ? 'PUT' : 'POST';

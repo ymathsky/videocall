@@ -161,14 +161,21 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
     db.run(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
+      username TEXT DEFAULT '',
       email TEXT DEFAULT '',
       role TEXT DEFAULT 'Doctor',
       specialty TEXT DEFAULT '',
       phone TEXT DEFAULT '',
       bio TEXT DEFAULT '',
       photo_url TEXT DEFAULT '',
+      password_hash TEXT DEFAULT '',
+      password_salt TEXT DEFAULT '',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Credential migrations for existing databases
+    db.run(`ALTER TABLE users ADD COLUMN username TEXT DEFAULT ''`, () => {});
+    db.run(`ALTER TABLE users ADD COLUMN password_hash TEXT DEFAULT ''`, () => {});
+    db.run(`ALTER TABLE users ADD COLUMN password_salt TEXT DEFAULT ''`, () => {});
   }
 });
 
@@ -329,21 +336,37 @@ app.post('/api/settings', requireAdmin, (req, res) => {
 });
 
 // ── Users (staff / providers) CRUD ──────────────────────────────────────────
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return { hash, salt };
+}
+
 app.get('/api/users', requireAdmin, (req, res) => {
-  db.all(`SELECT * FROM users ORDER BY name ASC`, [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
+  db.all(
+    `SELECT id, name, username, email, role, specialty, phone, bio, photo_url, created_at FROM users ORDER BY name ASC`,
+    [],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows);
+    }
+  );
 });
 
 app.post('/api/users', requireAdmin, (req, res) => {
-  const { name, email, role, specialty, phone, bio, photo_url } = req.body;
+  const { name, username, email, role, specialty, phone, bio, photo_url, password } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (!username) return res.status(400).json({ error: 'Username is required' });
+  if (!password) return res.status(400).json({ error: 'Password is required' });
+  const { hash, salt } = hashPassword(password);
   db.run(
-    `INSERT INTO users (name, email, role, specialty, phone, bio, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [name, email||'', role||'Doctor', specialty||'', phone||'', bio||'', photo_url||''],
+    `INSERT INTO users (name, username, email, role, specialty, phone, bio, photo_url, password_hash, password_salt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [name, username.toLowerCase().trim(), email||'', role||'Doctor', specialty||'', phone||'', bio||'', photo_url||'', hash, salt],
     function(err) {
-      if (err) return res.status(500).json({ error: err.message });
+      if (err) {
+        if (err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Username already taken' });
+        return res.status(500).json({ error: err.message });
+      }
       res.json({ id: this.lastID, message: 'User created' });
     }
   );
@@ -352,7 +375,7 @@ app.post('/api/users', requireAdmin, (req, res) => {
 // Public read — no auth required (for shareable profile pages)
 app.get('/api/users/public/:id', (req, res) => {
   db.get(
-    `SELECT id, name, email, role, specialty, phone, bio, photo_url, created_at FROM users WHERE id = ?`,
+    `SELECT id, name, username, email, role, specialty, phone, bio, photo_url, created_at FROM users WHERE id = ?`,
     [req.params.id],
     (err, row) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -363,17 +386,40 @@ app.get('/api/users/public/:id', (req, res) => {
 });
 
 app.put('/api/users/:id', requireAdmin, (req, res) => {
-  const { name, email, role, specialty, phone, bio, photo_url } = req.body;
+  const { name, username, email, role, specialty, phone, bio, photo_url, password } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
-  db.run(
-    `UPDATE users SET name=?, email=?, role=?, specialty=?, phone=?, bio=?, photo_url=? WHERE id=?`,
-    [name, email||'', role||'Doctor', specialty||'', phone||'', bio||'', photo_url||'', req.params.id],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
-      res.json({ message: 'User updated' });
-    }
-  );
+  if (!username) return res.status(400).json({ error: 'Username is required' });
+
+  if (password) {
+    // Update profile + credentials
+    const { hash, salt } = hashPassword(password);
+    db.run(
+      `UPDATE users SET name=?, username=?, email=?, role=?, specialty=?, phone=?, bio=?, photo_url=?, password_hash=?, password_salt=? WHERE id=?`,
+      [name, username.toLowerCase().trim(), email||'', role||'Doctor', specialty||'', phone||'', bio||'', photo_url||'', hash, salt, req.params.id],
+      function(err) {
+        if (err) {
+          if (err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Username already taken' });
+          return res.status(500).json({ error: err.message });
+        }
+        if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
+        res.json({ message: 'User updated' });
+      }
+    );
+  } else {
+    // Profile + username only (keep existing password)
+    db.run(
+      `UPDATE users SET name=?, username=?, email=?, role=?, specialty=?, phone=?, bio=?, photo_url=? WHERE id=?`,
+      [name, username.toLowerCase().trim(), email||'', role||'Doctor', specialty||'', phone||'', bio||'', photo_url||'', req.params.id],
+      function(err) {
+        if (err) {
+          if (err.message.includes('UNIQUE')) return res.status(409).json({ error: 'Username already taken' });
+          return res.status(500).json({ error: err.message });
+        }
+        if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
+        res.json({ message: 'User updated' });
+      }
+    );
+  }
 });
 
 app.delete('/api/users/:id', requireAdmin, (req, res) => {
