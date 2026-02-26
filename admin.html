@@ -78,6 +78,12 @@
         <button class="sidebar-btn" data-section="security-section">
             <i class="fas fa-lock"></i> Security
         </button>
+        <button class="sidebar-btn" data-section="appointments-section">
+            <i class="fas fa-calendar-days"></i> Appointments
+        </button>
+        <button class="sidebar-btn" data-section="patients-section">
+            <i class="fas fa-hospital-user"></i> Patients
+        </button>
 
         <div class="sidebar-section-label">Quick Links</div>
         <a href="/" class="sidebar-btn" style="text-decoration:none;display:flex;align-items:center;gap:10px;color:var(--text-2);">
@@ -479,6 +485,74 @@
             </div>
         </div>
 
+        <!-- Appointments section -->
+        <div id="appointments-section" class="admin-section">
+            <div class="admin-topbar">
+                <div class="admin-topbar-title">
+                    <h2>Appointments</h2>
+                    <span>Schedule and manage patient consultations</span>
+                </div>
+                <div class="admin-topbar-actions">
+                    <button class="btn-primary" onclick="openApptModal()" style="gap:6px;">
+                        <i class="fas fa-plus"></i> New Appointment
+                    </button>
+                </div>
+            </div>
+            <!-- Calendar nav -->
+            <div class="panel-card" style="margin-bottom:16px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                    <button onclick="apptMonthShift(-1)" class="secondary-btn" style="padding:7px 14px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);cursor:pointer;"><i class="fas fa-chevron-left"></i></button>
+                    <h3 id="appt-month-label" style="margin:0;font-size:1.05rem;"></h3>
+                    <button onclick="apptMonthShift(1)" class="secondary-btn" style="padding:7px 14px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);cursor:pointer;"><i class="fas fa-chevron-right"></i></button>
+                </div>
+                <div class="appt-calendar-header">
+                    <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                </div>
+                <div id="appt-calendar-grid" class="appt-calendar-grid"></div>
+            </div>
+            <!-- Appointments list for selected day -->
+            <div class="panel-card">
+                <div class="panel-card-header">
+                    <h3><i class="fas fa-list-ul" style="color:var(--teal);margin-right:8px;"></i><span id="appt-list-label">All this month</span></h3>
+                </div>
+                <div id="appt-list" style="display:flex;flex-direction:column;gap:10px;min-height:60px;">
+                    <div class="appt-empty">Select a day or load appointments</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Patients section -->
+        <div id="patients-section" class="admin-section">
+            <div class="admin-topbar">
+                <div class="admin-topbar-title">
+                    <h2>Patient Records</h2>
+                    <span>View full history per patient</span>
+                </div>
+            </div>
+            <div class="panel-card" style="margin-bottom:16px;">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label><i class="fas fa-search" style="margin-right:6px;color:var(--teal);"></i>Search patients</label>
+                    <input type="text" id="pt-search" placeholder="Name or email..." oninput="filterPatients()" />
+                </div>
+            </div>
+            <div id="pt-list" class="patients-grid"></div>
+            <!-- Patient history slide-in panel -->
+            <div id="pt-history-panel" class="pt-history-panel" style="display:none;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+                    <h3 id="pt-history-name" style="margin:0;font-size:1.1rem;"></h3>
+                    <button onclick="closePtHistory()" style="background:none;border:none;color:var(--text-2);cursor:pointer;font-size:1.2rem;"><i class="fas fa-times"></i></button>
+                </div>
+                <div id="pt-history-email" style="font-size:0.85rem;color:var(--text-2);margin-bottom:18px;"></div>
+                <div class="pt-history-tabs">
+                    <button class="pt-tab active" onclick="switchPtTab('overview')">Overview</button>
+                    <button class="pt-tab" onclick="switchPtTab('consents')">Consents</button>
+                    <button class="pt-tab" onclick="switchPtTab('visits')">Visits</button>
+                    <button class="pt-tab" onclick="switchPtTab('prescriptions')">Prescriptions</button>
+                </div>
+                <div id="pt-tab-content" style="margin-top:16px;"></div>
+            </div>
+        </div>
+
         <footer class="site-footer" style="margin-top:32px;">
             <span class="footer-company dynamic-company-name">TeleHealth Connect</span>
             <span class="footer-sep">&middot;</span>
@@ -489,6 +563,45 @@
 </div>
 
 <div id="toast"></div>
+
+<!-- Appointment Create/Edit Modal -->
+<div id="appt-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px 28px 22px;width:100%;max-width:520px;box-shadow:0 24px 60px rgba(0,0,0,.6);max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 id="appt-modal-title" style="margin:0;font-size:1.1rem;">New Appointment</h3>
+            <button onclick="closeApptModal()" style="background:none;border:none;color:var(--text-2);cursor:pointer;font-size:1.2rem;padding:4px;"><i class="fas fa-times"></i></button>
+        </div>
+        <input type="hidden" id="appt-modal-id" value="" />
+        <div class="form-group"><label>Patient Name <span style="color:#ef4444;">*</span></label><input type="text" id="am-name" placeholder="John Doe" /></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group"><label>Patient Email</label><input type="email" id="am-email" placeholder="patient@email.com" /></div>
+            <div class="form-group"><label>Patient Phone</label><input type="tel" id="am-phone" placeholder="+1 555 000 0000" /></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="form-group"><label>Date &amp; Time <span style="color:#ef4444;">*</span></label><input type="datetime-local" id="am-datetime" /></div>
+            <div class="form-group"><label>Duration</label>
+                <select id="am-duration" class="form-select">
+                    <option value="15">15 min</option>
+                    <option value="30" selected>30 min</option>
+                    <option value="45">45 min</option>
+                    <option value="60">60 min</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group"><label>Notes</label><textarea id="am-notes" rows="3" placeholder="Reason for visit, special instructions..."></textarea></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;">
+            <input type="checkbox" id="am-send-invite" checked style="width:16px;height:16px;" />
+            <label for="am-send-invite" style="margin:0;cursor:pointer;">Send invite email to patient (requires email in Settings)</label>
+        </div>
+        <div id="appt-modal-error" style="color:#ef4444;font-size:13px;margin-bottom:10px;min-height:18px;"></div>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button onclick="closeApptModal()" class="secondary-btn" style="padding:9px 18px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);">Cancel</button>
+            <button onclick="saveAppt()" class="btn-primary" style="padding:9px 18px;gap:6px;">
+                <i class="fas fa-floppy-disk"></i> <span id="appt-modal-save-label">Save Appointment</span>
+            </button>
+        </div>
+    </div>
+</div>
 
 <!-- User Add/Edit Modal -->
 <div id="user-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;align-items:center;justify-content:center;padding:16px;">
@@ -591,8 +704,10 @@
         const targetSec = document.getElementById(sectionId);
         if (targetBtn) targetBtn.classList.add('active');
         if (targetSec) targetSec.classList.add('active');
-        if (sectionId === 'users-section')     loadUsers();
-        if (sectionId === 'analytics-section') loadAnalytics();
+        if (sectionId === 'users-section')         loadUsers();
+        if (sectionId === 'analytics-section')     loadAnalytics();
+        if (sectionId === 'appointments-section')  loadAppointments();
+        if (sectionId === 'patients-section')      loadPatients();
     }
 
     /* â”€â”€â”€ Auth â”€â”€â”€ */
@@ -1466,6 +1581,252 @@
         </div>
     </div>
 </div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   APPOINTMENTS
+═══════════════════════════════════════════════════ */
+let apptYear  = new Date().getFullYear();
+let apptMonth = new Date().getMonth(); // 0-indexed
+let allAppts  = [];
+let selectedDay = null;
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+async function loadAppointments() {
+    try {
+        const r = await fetch(`/api/appointments?year=${apptYear}&month=${apptMonth + 1}`);
+        allAppts = await r.json();
+        renderCalendar();
+        renderApptList(allAppts);
+    } catch(e) {
+        console.error('loadAppointments', e);
+    }
+}
+
+function apptMonthShift(delta) {
+    apptMonth += delta;
+    if (apptMonth < 0) { apptMonth = 11; apptYear--; }
+    if (apptMonth > 11) { apptMonth = 0; apptYear++; }
+    selectedDay = null;
+    loadAppointments();
+}
+
+function renderCalendar() {
+    document.getElementById('appt-month-label').textContent = `${MONTH_NAMES[apptMonth]} ${apptYear}`;
+    const grid = document.getElementById('appt-calendar-grid');
+    grid.innerHTML = '';
+    const firstDay = new Date(apptYear, apptMonth, 1).getDay();
+    const daysInMonth = new Date(apptYear, apptMonth + 1, 0).getDate();
+    const today = new Date();
+    // Blank cells
+    for (let i = 0; i < firstDay; i++) { const b = document.createElement('div'); b.className = 'appt-cal-cell empty'; grid.appendChild(b); }
+    for (let d = 1; d <= daysInMonth; d++) {
+        const cell = document.createElement('div');
+        cell.className = 'appt-cal-cell';
+        const isToday = today.getFullYear() === apptYear && today.getMonth() === apptMonth && today.getDate() === d;
+        if (isToday) cell.classList.add('today');
+        if (selectedDay === d) cell.classList.add('selected');
+        const dayAppts = allAppts.filter(a => new Date(a.scheduled_at).getDate() === d);
+        cell.innerHTML = `<span class="cal-day-num">${d}</span>${dayAppts.length ? `<span class="cal-dot" title="${dayAppts.length} appt"></span>` : ''}`;
+        cell.onclick = () => { selectedDay = d; renderCalendar(); filterApptByDay(d); };
+        grid.appendChild(cell);
+    }
+}
+
+function filterApptByDay(d) {
+    const label = document.getElementById('appt-list-label');
+    const filtered = allAppts.filter(a => new Date(a.scheduled_at).getDate() === d);
+    label.textContent = `${MONTH_NAMES[apptMonth]} ${d}, ${apptYear} — ${filtered.length} appointment${filtered.length !== 1 ? 's' : ''}`;
+    renderApptList(filtered);
+}
+
+function renderApptList(list) {
+    const el = document.getElementById('appt-list');
+    if (!list.length) { el.innerHTML = '<div class="appt-empty">No appointments for this period</div>'; return; }
+    el.innerHTML = list.map(a => {
+        const dt = new Date(a.scheduled_at);
+        const timeStr = dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        const dateStr = dt.toLocaleDateString([], {month:'short', day:'numeric'});
+        const statusColor = { scheduled:'var(--teal)', cancelled:'var(--red,#ef4444)', completed:'var(--green)', no_show:'#f59e0b' }[a.status] || 'var(--text-2)';
+        return `<div class="appt-card">
+            <div class="appt-card-time"><i class="fas fa-clock"></i> ${dateStr} ${timeStr}</div>
+            <div class="appt-card-name">${esc(a.patient_name)}</div>
+            <div class="appt-card-meta">${esc(a.patient_email || '')} ${a.patient_phone ? '· '+ esc(a.patient_phone) : ''}</div>
+            ${a.notes ? `<div class="appt-card-notes">${esc(a.notes)}</div>` : ''}
+            <div class="appt-card-footer">
+                <span class="appt-status-badge" style="color:${statusColor};background:${statusColor}22;">${a.status}</span>
+                <span style="font-size:12px;color:var(--text-2);">${a.duration_minutes} min</span>
+                <div style="display:flex;gap:6px;margin-left:auto;">
+                    <button onclick="editAppt(${a.id})" class="secondary-btn" style="padding:4px 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px;"><i class="fas fa-pen"></i></button>
+                    <button onclick="deleteAppt(${a.id})" class="secondary-btn" style="padding:4px 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px;color:var(--red,#ef4444);"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function openApptModal(appt) {
+    document.getElementById('appt-modal-id').value = appt ? appt.id : '';
+    document.getElementById('appt-modal-title').textContent = appt ? 'Edit Appointment' : 'New Appointment';
+    document.getElementById('appt-modal-save-label').textContent = appt ? 'Save Changes' : 'Save Appointment';
+    document.getElementById('am-name').value = appt ? appt.patient_name : '';
+    document.getElementById('am-email').value = appt ? (appt.patient_email || '') : '';
+    document.getElementById('am-phone').value = appt ? (appt.patient_phone || '') : '';
+    document.getElementById('am-notes').value = appt ? (appt.notes || '') : '';
+    document.getElementById('am-duration').value = appt ? appt.duration_minutes : '30';
+    document.getElementById('am-send-invite').checked = !appt;
+    // Format datetime-local value
+    if (appt && appt.scheduled_at) {
+        const d = new Date(appt.scheduled_at);
+        const pad = n => String(n).padStart(2,'0');
+        document.getElementById('am-datetime').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } else {
+        document.getElementById('am-datetime').value = '';
+    }
+    document.getElementById('appt-modal-error').textContent = '';
+    const modal = document.getElementById('appt-modal');
+    modal.style.display = 'flex';
+}
+
+function closeApptModal() { document.getElementById('appt-modal').style.display = 'none'; }
+
+async function saveAppt() {
+    const id = document.getElementById('appt-modal-id').value;
+    const body = {
+        patient_name: document.getElementById('am-name').value.trim(),
+        patient_email: document.getElementById('am-email').value.trim(),
+        patient_phone: document.getElementById('am-phone').value.trim(),
+        scheduled_at: document.getElementById('am-datetime').value,
+        duration_minutes: parseInt(document.getElementById('am-duration').value),
+        notes: document.getElementById('am-notes').value.trim(),
+        send_invite: document.getElementById('am-send-invite').checked,
+    };
+    if (!body.patient_name) { document.getElementById('appt-modal-error').textContent = 'Patient name is required.'; return; }
+    if (!body.scheduled_at)  { document.getElementById('appt-modal-error').textContent = 'Date & time is required.'; return; }
+    try {
+        const res = await fetch(id ? `/api/appointments/${id}` : '/api/appointments', {
+            method: id ? 'PUT' : 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        showToast(id ? 'Appointment updated' : 'Appointment created');
+        closeApptModal();
+        loadAppointments();
+    } catch(e) {
+        document.getElementById('appt-modal-error').textContent = e.message;
+    }
+}
+
+async function editAppt(id) {
+    const appt = allAppts.find(a => a.id === id);
+    if (appt) openApptModal(appt);
+}
+
+async function deleteAppt(id) {
+    if (!confirm('Delete this appointment?')) return;
+    try {
+        const r = await fetch(`/api/appointments/${id}`, { method:'DELETE' });
+        if (!r.ok) throw new Error('Failed');
+        showToast('Appointment deleted');
+        loadAppointments();
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+/* ═══════════════════════════════════════════════════
+   PATIENTS
+═══════════════════════════════════════════════════ */
+let allPatients = [];
+let currentPtEmail = null;
+let currentPtTab = 'overview';
+
+async function loadPatients() {
+    try {
+        const r = await fetch('/api/patients');
+        allPatients = await r.json();
+        renderPatientCards(allPatients);
+    } catch(e) { console.error('loadPatients', e); }
+}
+
+function filterPatients() {
+    const q = document.getElementById('pt-search').value.toLowerCase();
+    renderPatientCards(q ? allPatients.filter(p => (p.name||'').toLowerCase().includes(q) || (p.email||'').toLowerCase().includes(q)) : allPatients);
+}
+
+function renderPatientCards(list) {
+    const el = document.getElementById('pt-list');
+    if (!list.length) { el.innerHTML = '<div class="appt-empty" style="grid-column:1/-1;">No patients found</div>'; return; }
+    el.innerHTML = list.map(p => `<div class="pt-card" onclick="openPtHistory('${esc(p.email)}','${esc(p.name)}')">
+        <div class="pt-card-avatar"><i class="fas fa-user-injured"></i></div>
+        <div class="pt-card-info">
+            <div class="pt-card-name">${esc(p.name || 'Unknown')}</div>
+            <div class="pt-card-email">${esc(p.email || '—')}</div>
+        </div>
+        <div class="pt-card-stats">
+            <span title="Visits"><i class="fas fa-video"></i> ${p.visit_count||0}</span>
+            <span title="Consents"><i class="fas fa-file-signature"></i> ${p.consent_count||0}</span>
+        </div>
+        <div class="pt-card-last">${p.last_seen ? new Date(p.last_seen).toLocaleDateString() : '—'}</div>
+    </div>`).join('');
+}
+
+async function openPtHistory(email, name) {
+    currentPtEmail = email;
+    document.getElementById('pt-history-name').textContent = name || email;
+    document.getElementById('pt-history-email').textContent = email;
+    document.getElementById('pt-history-panel').style.display = 'block';
+    switchPtTab('overview');
+    loadPtHistory();
+}
+
+function closePtHistory() { document.getElementById('pt-history-panel').style.display = 'none'; currentPtEmail = null; }
+
+function switchPtTab(tab) {
+    currentPtTab = tab;
+    document.querySelectorAll('.pt-tab').forEach(t => t.classList.toggle('active', t.textContent.toLowerCase() === tab));
+    if (currentPtEmail) loadPtHistory();
+}
+
+async function loadPtHistory() {
+    try {
+        const r = await fetch(`/api/patients/${encodeURIComponent(currentPtEmail)}/history`);
+        const data = await r.json();
+        renderPtTab(data);
+    } catch(e) { console.error('loadPtHistory', e); }
+}
+
+function renderPtTab(data) {
+    const el = document.getElementById('pt-tab-content');
+    if (currentPtTab === 'overview') {
+        el.innerHTML = `
+            <div class="pt-stat-row">
+                <div class="pt-stat-card"><strong>${data.appointments?.length||0}</strong><span>Appointments</span></div>
+                <div class="pt-stat-card"><strong>${data.visits?.length||0}</strong><span>Visits</span></div>
+                <div class="pt-stat-card"><strong>${data.consents?.length||0}</strong><span>Consents</span></div>
+                <div class="pt-stat-card"><strong>${data.prescriptions?.length||0}</strong><span>Prescriptions</span></div>
+            </div>`;
+    } else if (currentPtTab === 'consents') {
+        el.innerHTML = data.consents?.length
+            ? data.consents.map(c => `<div class="pt-timeline-item"><i class="fas fa-file-signature" style="color:var(--teal);"></i><div><div>${esc(c.signature)}</div><div class="pt-timeline-date">${new Date(c.created_at).toLocaleString()}</div></div></div>`).join('')
+            : '<div class="appt-empty">No consents on file</div>';
+    } else if (currentPtTab === 'visits') {
+        el.innerHTML = data.visits?.length
+            ? data.visits.map(v => `<div class="pt-timeline-item"><i class="fas fa-video" style="color:var(--green);"></i><div><div>Room: ${esc(v.room_name)}</div>${v.soap_notes ? `<div style="font-size:12px;color:var(--text-2);">${esc(v.soap_notes.substring(0,120))}${v.soap_notes.length>120?'…':''}</div>` : ''}<div class="pt-timeline-date">${new Date(v.created_at).toLocaleString()}</div></div></div>`).join('')
+            : '<div class="appt-empty">No visit records</div>';
+    } else if (currentPtTab === 'prescriptions') {
+        el.innerHTML = data.prescriptions?.length
+            ? data.prescriptions.map(rx => {
+                const meds = JSON.parse(rx.medications || '[]');
+                return `<div class="pt-timeline-item"><i class="fas fa-prescription-bottle-medical" style="color:#f59e0b;"></i><div><div>Provider: ${esc(rx.provider_name||'—')}</div><div style="font-size:12px;color:var(--text-2);">${meds.map(m=>esc(m.drug)).join(', ')||'No medications listed'}</div><div class="pt-timeline-date">${new Date(rx.created_at).toLocaleString()}</div></div></div>`;
+            }).join('')
+            : '<div class="appt-empty">No prescriptions on file</div>';
+    }
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
 
 </body>
 </html>

@@ -269,6 +269,9 @@
             <button id="notes-toggle-button" class="control-btn" title="SOAP Notes (Host Only)" style="display:none;">
                 <i class="fas fa-notes-medical"></i>
             </button>
+            <button id="rx-toggle-button" class="control-btn" title="E-Prescription (Host Only)" style="display:none;">
+                <i class="fas fa-prescription-bottle-medical"></i>
+            </button>
             <button id="record-button" class="control-btn" title="Record Session (Host Only)" style="display:none;">
                 <i class="fas fa-circle" style="color:#ef4444"></i>
             </button>
@@ -289,6 +292,42 @@
             <div id="chat-input-container">
                 <input type="text" id="chat-input" placeholder="Type a message..." />
                 <button id="chat-send-btn"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+
+        <!-- Rx / E-Prescription Panel (host only) -->
+        <div id="rx-panel">
+            <div id="rx-header">
+                <div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;">
+                    <i class="fas fa-prescription-bottle-medical" style="color:#f59e0b;"></i> E-Prescription
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <button id="rx-print-btn" style="background:none;border:none;color:var(--text-2);cursor:pointer;font-size:0.9rem;padding:4px 8px;display:flex;align-items:center;gap:4px;" title="Print Prescription">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                    <button id="rx-close-btn" style="background:none;border:none;color:var(--text-2);cursor:pointer;font-size:1.1rem;padding:4px;">&times;</button>
+                </div>
+            </div>
+            <div id="rx-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
+                    <div class="soap-section" style="margin:0;"><label class="soap-label" style="font-size:11px;">Patient Name</label><input type="text" id="rx-patient-name" class="rx-field" placeholder="Full name" /></div>
+                    <div class="soap-section" style="margin:0;"><label class="soap-label" style="font-size:11px;">Date of Birth</label><input type="text" id="rx-patient-dob" class="rx-field" placeholder="MM/DD/YYYY" /></div>
+                    <div class="soap-section" style="margin:0;"><label class="soap-label" style="font-size:11px;">Patient Email</label><input type="email" id="rx-patient-email" class="rx-field" placeholder="patient@email.com" /></div>
+                </div>
+                <div class="soap-section" style="margin-bottom:14px;"><label class="soap-label" style="font-size:11px;">Patient Address</label><input type="text" id="rx-patient-address" class="rx-field" placeholder="Street, City, State, ZIP" /></div>
+                <!-- Medications table -->
+                <label class="soap-label" style="font-size:11px;margin-bottom:8px;display:block;">Medications</label>
+                <div style="overflow-x:auto;margin-bottom:10px;">
+                    <table id="rx-med-table" class="rx-table">
+                        <thead><tr><th>Drug / Strength</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Qty</th><th></th></tr></thead>
+                        <tbody id="rx-med-tbody"></tbody>
+                    </table>
+                    <button id="rx-add-row-btn" style="margin-top:6px;background:none;border:1px dashed var(--border);border-radius:6px;color:var(--teal);cursor:pointer;padding:5px 12px;font-size:12px;width:100%;">
+                        <i class="fas fa-plus"></i> Add Medication
+                    </button>
+                </div>
+                <div class="soap-section" style="margin-bottom:14px;"><label class="soap-label" style="font-size:11px;">Instructions / Pharmacy Notes</label><textarea id="rx-instructions" class="soap-textarea" rows="2" placeholder="Special instructions, refill policy, warnings..."></textarea></div>
+                <div class="soap-section" style="margin-bottom:0;"><label class="soap-label" style="font-size:11px;">Prescribing Provider</label><input type="text" id="rx-provider" class="rx-field" placeholder="Dr. First Last, MD" /></div>
             </div>
         </div>
 

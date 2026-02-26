@@ -203,8 +203,102 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
     db.run(`ALTER TABLE meetings ADD COLUMN soap_notes TEXT DEFAULT ''`, () => {});
     db.run(`ALTER TABLE consents ADD COLUMN email TEXT DEFAULT ''`, () => {});
     db.run(`ALTER TABLE consents ADD COLUMN room_name TEXT DEFAULT ''`, () => {});
+
+    // ── Appointments table ──────────────────────────────────────────────────
+    db.run(`CREATE TABLE IF NOT EXISTS appointments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_name TEXT NOT NULL DEFAULT '',
+      patient_email TEXT NOT NULL DEFAULT '',
+      patient_phone TEXT DEFAULT '',
+      room_name TEXT DEFAULT '',
+      scheduled_at DATETIME NOT NULL,
+      duration_minutes INTEGER DEFAULT 30,
+      notes TEXT DEFAULT '',
+      status TEXT DEFAULT 'scheduled',
+      invite_sent INTEGER DEFAULT 0,
+      reminder_sent_24h INTEGER DEFAULT 0,
+      reminder_sent_1h INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // ── Prescriptions table ─────────────────────────────────────────────────
+    db.run(`CREATE TABLE IF NOT EXISTS prescriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      room_name TEXT DEFAULT '',
+      patient_name TEXT DEFAULT '',
+      patient_email TEXT DEFAULT '',
+      patient_dob TEXT DEFAULT '',
+      patient_address TEXT DEFAULT '',
+      medications TEXT DEFAULT '[]',
+      instructions TEXT DEFAULT '',
+      provider_name TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
   }
 });
+
+// ── Appointment reminder cron (runs every 10 min) ─────────────────────────────
+async function sendReminderEmail(appt, settings, hoursAhead) {
+  if (!settings.smtp_host || !settings.smtp_user || !settings.smtp_pass) return;
+  const port = parseInt(settings.smtp_port) || 587;
+  const transporter = nodemailer.createTransport({
+    host: settings.smtp_host, port, secure: port === 465,
+    auth: { user: settings.smtp_user, pass: settings.smtp_pass },
+  });
+  const company   = settings.company_name || 'TeleHealth Connect';
+  const fromAddr  = settings.smtp_from || `${company} <${settings.smtp_user}>`;
+  const when      = new Date(appt.scheduled_at).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
+  const joinUrl   = appt.room_name
+    ? `${settings.app_url || ''}/consent?room=${encodeURIComponent(appt.room_name)}&name=${encodeURIComponent(appt.patient_name)}&email=${encodeURIComponent(appt.patient_email)}`
+    : '';
+  await transporter.sendMail({
+    from: fromAddr, to: appt.patient_email,
+    subject: `Reminder: Your consultation in ${hoursAhead}h — ${company}`,
+    html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f8fafc;padding:32px 0;margin:0;">
+<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08);">
+  <div style="background:#0d9488;padding:28px 32px;"><h1 style="color:#fff;margin:0;font-size:1.3rem;">${company}</h1></div>
+  <div style="padding:32px;">
+    <p style="font-size:15px;color:#1e293b;margin:0 0 12px;">Hi ${appt.patient_name},</p>
+    <p style="font-size:14px;color:#475569;margin:0 0 20px;">This is a reminder that you have a telehealth consultation scheduled in <strong>${hoursAhead} hour${hoursAhead > 1 ? 's' : ''}</strong>.</p>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:20px;">
+      <p style="margin:0;font-size:14px;color:#166534;"><strong>📅 ${when}</strong></p>
+      ${appt.notes ? `<p style="margin:8px 0 0;font-size:13px;color:#475569;">${appt.notes}</p>` : ''}
+    </div>
+    ${joinUrl ? `<div style="text-align:center;"><a href="${joinUrl}" style="display:inline-block;background:#0d9488;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:600;">Join Consultation</a></div>` : ''}
+  </div>
+</div></body></html>`,
+  });
+}
+
+setInterval(async () => {
+  try {
+    const settings = await new Promise((resolve, reject) =>
+      db.all(`SELECT key, value FROM settings`, [], (err, rows) => {
+        if (err) return reject(err);
+        const s = {}; rows.forEach(r => { s[r.key] = r.value; }); resolve(s);
+      })
+    );
+    const now = Date.now();
+    db.all(`SELECT * FROM appointments WHERE status = 'scheduled' AND patient_email != ''`, [], async (err, rows) => {
+      if (err || !rows) return;
+      for (const appt of rows) {
+        const diffMs   = new Date(appt.scheduled_at).getTime() - now;
+        const diffMins = diffMs / 60000;
+        if (!appt.reminder_sent_24h && diffMins > 0 && diffMins <= 24 * 60 + 10) {
+          await sendReminderEmail(appt, settings, 24).catch(() => {});
+          db.run(`UPDATE appointments SET reminder_sent_24h=1 WHERE id=?`, [appt.id]);
+        }
+        if (!appt.reminder_sent_1h && diffMins > 0 && diffMins <= 60 + 10) {
+          await sendReminderEmail(appt, settings, 1).catch(() => {});
+          db.run(`UPDATE appointments SET reminder_sent_1h=1 WHERE id=?`, [appt.id]);
+        }
+        if (diffMins < -120) { // mark no-show after 2h past
+          db.run(`UPDATE appointments SET status='no-show' WHERE id=? AND status='scheduled'`, [appt.id]);
+        }
+      }
+    });
+  } catch(e) { /* silent */ }
+}, 10 * 60 * 1000).unref();
 
 // Serve static files from the current directory
 app.use(express.static(__dirname, {
@@ -525,6 +619,182 @@ app.post('/api/invite/send', requireAdmin, async (req, res) => {
   res.status(400).json({ error: 'Invalid method. Use \'email\' or \'sms\'.' });
 });
 
+// ── Appointments CRUD ────────────────────────────────────────────────────────
+app.get('/api/appointments', requireAdmin, (req, res) => {
+  const { month, year } = req.query;
+  let sql = `SELECT * FROM appointments ORDER BY scheduled_at ASC`;
+  const params = [];
+  if (month && year) {
+    sql = `SELECT * FROM appointments WHERE strftime('%Y-%m', scheduled_at) = ? ORDER BY scheduled_at ASC`;
+    params.push(`${year}-${String(month).padStart(2,'0')}`);
+  }
+  db.all(sql, params, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+app.post('/api/appointments', requireAdmin, async (req, res) => {
+  const { patient_name, patient_email, patient_phone, scheduled_at, duration_minutes, notes, send_invite } = req.body;
+  if (!patient_name || !scheduled_at) return res.status(400).json({ error: 'patient_name and scheduled_at are required' });
+
+  // Auto-generate a room for this appointment
+  const room_name = 'appt-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+
+  db.run(
+    `INSERT INTO meetings (room_name, created_at) VALUES (?, ?)`,
+    [room_name, new Date().toISOString()],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      db.run(
+        `INSERT INTO appointments (patient_name, patient_email, patient_phone, room_name, scheduled_at, duration_minutes, notes) VALUES (?,?,?,?,?,?,?)`,
+        [patient_name, patient_email || '', patient_phone || '', room_name, scheduled_at, duration_minutes || 30, notes || ''],
+        async function(err2) {
+          if (err2) return res.status(500).json({ error: err2.message });
+          const apptId = this.lastID;
+
+          // Generate patient join token
+          const token = crypto.randomBytes(32).toString('hex');
+          db.run(`INSERT INTO join_tokens (room_name, token) VALUES (?, ?)`, [room_name, token]);
+
+          let inviteSent = false;
+          if (send_invite && patient_email) {
+            try {
+              const settings = await new Promise((resolve, reject) =>
+                db.all(`SELECT key, value FROM settings`, [], (e, rows) => {
+                  if (e) return reject(e);
+                  const s = {}; rows.forEach(r => { s[r.key] = r.value; }); resolve(s);
+                })
+              );
+              if (settings.smtp_host && settings.smtp_user && settings.smtp_pass) {
+                const port = parseInt(settings.smtp_port) || 587;
+                const transporter = nodemailer.createTransport({
+                  host: settings.smtp_host, port, secure: port === 465,
+                  auth: { user: settings.smtp_user, pass: settings.smtp_pass },
+                });
+                const company  = settings.company_name || 'TeleHealth Connect';
+                const fromAddr = settings.smtp_from || `${company} <${settings.smtp_user}>`;
+                const when     = new Date(scheduled_at).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
+                const joinUrl  = `${settings.app_url || ''}/consent?room=${encodeURIComponent(room_name)}&name=${encodeURIComponent(patient_name)}&email=${encodeURIComponent(patient_email || '')}&token=${token}`;
+                await transporter.sendMail({
+                  from: fromAddr, to: patient_email,
+                  subject: `Your upcoming consultation — ${company}`,
+                  html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f8fafc;padding:32px 0;margin:0;">
+<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08);">
+  <div style="background:#0d9488;padding:28px 32px;"><h1 style="color:#fff;margin:0;font-size:1.3rem;">${company}</h1><p style="color:rgba(255,255,255,.8);margin:4px 0 0;font-size:14px;">Secure Telehealth Consultation</p></div>
+  <div style="padding:32px;">
+    <p style="font-size:15px;color:#1e293b;margin:0 0 12px;">Hi ${patient_name},</p>
+    <p style="font-size:14px;color:#475569;margin:0 0 20px;">Your telehealth consultation has been scheduled:</p>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:24px;">
+      <p style="margin:0;font-size:15px;color:#166534;font-weight:600;">📅 ${when}</p>
+      ${notes ? `<p style="margin:8px 0 0;font-size:13px;color:#475569;">${notes}</p>` : ''}
+    </div>
+    <div style="text-align:center;margin-bottom:24px;"><a href="${joinUrl}" style="display:inline-block;background:#0d9488;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:600;">Complete Consent &amp; Join</a></div>
+    <p style="font-size:12px;color:#94a3b8;">If the button doesn't work: <span style="color:#0d9488;word-break:break-all;">${joinUrl}</span></p>
+  </div>
+</div></body></html>`,
+                });
+                inviteSent = true;
+                db.run(`UPDATE appointments SET invite_sent=1 WHERE id=?`, [apptId]);
+              }
+            } catch(e) { console.error('[APPT INVITE]', e.message); }
+          }
+
+          res.json({ id: apptId, room_name, invite_sent: inviteSent, message: 'Appointment created' });
+        }
+      );
+    }
+  );
+});
+
+app.put('/api/appointments/:id', requireAdmin, (req, res) => {
+  const { patient_name, patient_email, patient_phone, scheduled_at, duration_minutes, notes, status } = req.body;
+  db.run(
+    `UPDATE appointments SET patient_name=COALESCE(?,patient_name), patient_email=COALESCE(?,patient_email), patient_phone=COALESCE(?,patient_phone), scheduled_at=COALESCE(?,scheduled_at), duration_minutes=COALESCE(?,duration_minutes), notes=COALESCE(?,notes), status=COALESCE(?,status) WHERE id=?`,
+    [patient_name, patient_email, patient_phone, scheduled_at, duration_minutes, notes, status, req.params.id],
+    (err) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ message: 'Appointment updated' });
+    }
+  );
+});
+
+app.delete('/api/appointments/:id', requireAdmin, (req, res) => {
+  db.run(`DELETE FROM appointments WHERE id=?`, [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Deleted' });
+  });
+});
+
+// ── Patients (aggregate view) ────────────────────────────────────────────────
+app.get('/api/patients', requireAdmin, (req, res) => {
+  db.all(`
+    SELECT
+      c.email,
+      c.first_name || ' ' || c.last_name AS name,
+      MAX(c.created_at) AS last_consent,
+      COUNT(DISTINCT c.id) AS consent_count,
+      COUNT(DISTINCT a.id) AS appointment_count,
+      COUNT(DISTINCT m.id) AS visit_count,
+      MAX(a.scheduled_at) AS last_appointment
+    FROM consents c
+    LEFT JOIN appointments a ON LOWER(TRIM(a.patient_email)) = LOWER(TRIM(c.email)) AND c.email != ''
+    LEFT JOIN meetings m ON LOWER(TRIM(m.room_name)) = LOWER(TRIM(c.room_name)) AND c.room_name != ''
+    WHERE c.email != ''
+    GROUP BY LOWER(TRIM(c.email))
+    ORDER BY last_consent DESC
+  `, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+app.get('/api/patients/:email/history', requireAdmin, (req, res) => {
+  const email = decodeURIComponent(req.params.email);
+  Promise.all([
+    new Promise((resolve, reject) => db.all(`SELECT * FROM consents WHERE LOWER(TRIM(email))=LOWER(TRIM(?)) ORDER BY created_at DESC`, [email], (e, r) => e ? reject(e) : resolve(r || []))),
+    new Promise((resolve, reject) => db.all(`SELECT * FROM appointments WHERE LOWER(TRIM(patient_email))=LOWER(TRIM(?)) ORDER BY scheduled_at DESC`, [email], (e, r) => e ? reject(e) : resolve(r || []))),
+    new Promise((resolve, reject) => db.all(`SELECT m.room_name, m.started_at, m.ended_at, m.duration_seconds, m.soap_notes, m.summary FROM meetings m JOIN consents c ON LOWER(TRIM(c.room_name))=LOWER(TRIM(m.room_name)) WHERE LOWER(TRIM(c.email))=LOWER(TRIM(?)) AND c.email!='' ORDER BY m.created_at DESC`, [email], (e, r) => e ? reject(e) : resolve(r || []))),
+    new Promise((resolve, reject) => db.all(`SELECT * FROM prescriptions WHERE LOWER(TRIM(patient_email))=LOWER(TRIM(?)) ORDER BY created_at DESC`, [email], (e, r) => e ? reject(e) : resolve(r || []))),
+  ]).then(([consents, appointments, visits, prescriptions]) => {
+    res.json({ email, consents, appointments, visits, prescriptions });
+  }).catch(e => res.status(500).json({ error: e.message }));
+});
+
+// ── Prescriptions CRUD ───────────────────────────────────────────────────────
+app.get('/api/prescriptions', requireAdmin, (req, res) => {
+  db.all(`SELECT * FROM prescriptions ORDER BY created_at DESC LIMIT 100`, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+app.get('/api/prescriptions/room/:roomName', (req, res) => {
+  db.all(`SELECT * FROM prescriptions WHERE room_name=? ORDER BY created_at DESC`, [req.params.roomName], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+app.post('/api/prescriptions', (req, res) => {
+  const { room_name, patient_name, patient_email, patient_dob, patient_address, medications, instructions, provider_name } = req.body;
+  db.run(
+    `INSERT INTO prescriptions (room_name, patient_name, patient_email, patient_dob, patient_address, medications, instructions, provider_name) VALUES (?,?,?,?,?,?,?,?)`,
+    [room_name || '', patient_name || '', patient_email || '', patient_dob || '', patient_address || '', JSON.stringify(medications || []), instructions || '', provider_name || ''],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ id: this.lastID, message: 'Prescription saved' });
+    }
+  );
+});
+
+app.delete('/api/prescriptions/:id', requireAdmin, (req, res) => {
+  db.run(`DELETE FROM prescriptions WHERE id=?`, [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ message: 'Deleted' });
+  });
+});
+
 // ── Users (staff / providers) CRUD ──────────────────────────────────────────
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -751,6 +1021,36 @@ async function sendFollowUpEmail(roomName, patientEmail, summary, durationSec) {
 }
 const pendingTokens = new Map(); // guestSocketId -> joinToken (cleared after admit/deny/disconnect)
 const joinAttempts  = new Map(); // ip -> { count, resetAt } — rate limiting
+const waitingQueues = {};        // roomName -> [{socketId, name, joinedAt}]
+
+function broadcastQueue(roomName) {
+  const room  = activeRooms[roomName];
+  if (!room) return;
+  const queue = waitingQueues[roomName] || [];
+  // Send full queue to host
+  io.to(room.hostId).emit('queue-update', queue.map((e, i) => ({
+    socketId: e.socketId, name: e.name, position: i + 1, waitingSince: e.joinedAt,
+  })));
+  // Send each waiting patient their individual position
+  queue.forEach((entry, i) => {
+    const s = io.sockets.sockets.get(entry.socketId);
+    if (s) s.emit('queue-position', { position: i + 1, total: queue.length });
+  });
+}
+
+function addToQueue(roomName, socketId, name) {
+  if (!waitingQueues[roomName]) waitingQueues[roomName] = [];
+  if (!waitingQueues[roomName].find(e => e.socketId === socketId)) {
+    waitingQueues[roomName].push({ socketId, name, joinedAt: Date.now() });
+  }
+  broadcastQueue(roomName);
+}
+
+function removeFromQueue(roomName, socketId) {
+  if (!waitingQueues[roomName]) return;
+  waitingQueues[roomName] = waitingQueues[roomName].filter(e => e.socketId !== socketId);
+  broadcastQueue(roomName);
+}
 
 function checkRateLimit(ip) {
   const now  = Date.now();
@@ -860,6 +1160,7 @@ io.on('connection', (socket) => {
           pendingTokens.set(socket.id, joinToken);
           socket.emit('waiting-room');
           io.to(room.hostId).emit('guest-waiting', { socketId: socket.id, roomName, name: socket.participantName });
+          addToQueue(roomName, socket.id, socket.participantName);
           console.log(`Patient ${socket.id} in waiting room for ${roomName}`);
         }
       );
@@ -870,6 +1171,7 @@ io.on('connection', (socket) => {
       // No password, no token required (manual / legacy room)
       socket.emit('waiting-room');
       io.to(room.hostId).emit('guest-waiting', { socketId: socket.id, roomName, name: socket.participantName });
+      addToQueue(roomName, socket.id, socket.participantName);
     }
   });
 
@@ -896,6 +1198,7 @@ io.on('connection', (socket) => {
 
       guestSocket.join(roomName);
       guestSocket.emit('admitted', roomName);
+      removeFromQueue(roomName, guestSocketId);
       console.log(`Patient ${guestSocketId} admitted to room ${roomName}`);
     }
   });
@@ -905,6 +1208,7 @@ io.on('connection', (socket) => {
     if (guestSocket) {
       pendingTokens.delete(guestSocketId);
       guestSocket.emit('denied');
+      for (const [rn] of Object.entries(waitingQueues)) { removeFromQueue(rn, guestSocketId); }
     }
   });
 
@@ -1016,6 +1320,7 @@ io.on('connection', (socket) => {
       }
     });
     pendingTokens.delete(socket.id);
+    for (const [rn] of Object.entries(waitingQueues)) { removeFromQueue(rn, socket.id); }
   });
 
   socket.on('disconnect', () => {

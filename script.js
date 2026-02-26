@@ -610,6 +610,11 @@ socket.on('waiting-room', () => {
     waitingRoomOverlay.style = 'display:flex';
 });
 
+socket.on('queue-position', ({ position, total }) => {
+    const msg = document.getElementById('waiting-message');
+    if (msg) msg.innerHTML = `You're in the waiting room.<br>You are <strong>#${position}</strong> of ${total} patient${total !== 1 ? 's' : ''} waiting.`;
+});
+
 socket.on('guest-waiting', (data) => {
     const notification = document.createElement('div');
     notification.className = 'notification-card';
@@ -622,6 +627,23 @@ socket.on('guest-waiting', (data) => {
         </div>
     `;
     hostNotifications.appendChild(notification);
+});
+
+// Queue update — host sees live numbered list of waiting patients
+let queuePanel = null;
+socket.on('queue-update', (queue) => {
+    if (!isHost) return;
+    if (!queuePanel) {
+        queuePanel = document.createElement('div');
+        queuePanel.id = 'host-queue-panel';
+        queuePanel.className = 'host-queue-panel';
+        document.getElementById('video-chat-container').appendChild(queuePanel);
+    }
+    if (!queue.length) { queuePanel.style.display = 'none'; return; }
+    const elapsed = (ms) => { const s = Math.floor((Date.now() - ms) / 1000); return s < 60 ? `${s}s` : `${Math.floor(s/60)}m`; };
+    queuePanel.style.display = 'block';
+    queuePanel.innerHTML = `<div class="queue-panel-title"><i class="fas fa-users-clock"></i> Waiting (${queue.length})</div>` +
+        queue.map(e => `<div class="queue-item"><span class="queue-pos">#${e.position}</span> <span class="queue-name">${e.name}</span> <span class="queue-wait">${elapsed(e.waitingSince)}</span></div>`).join('');
 });
 
 window.admitGuest = function(socketId, roomName) {
@@ -793,6 +815,7 @@ function startCallSession() {
     if (isHost) {
         document.getElementById('end-meeting-button').style.display = '';
         document.getElementById('notes-toggle-button').style.display = '';
+        document.getElementById('rx-toggle-button').style.display = '';
         document.getElementById('raise-hand-button').style.display = 'none';
         const recBtn = document.getElementById('record-button');
         if (recBtn) recBtn.style.display = '';
@@ -1195,5 +1218,123 @@ function downloadRecording(mimeType) {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     recChunks = [];
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   FEATURE: E-Prescription / Rx Panel (host-only)
+   ══════════════════════════════════════════════════════════════════════ */
+const rxToggleBtn = document.getElementById('rx-toggle-button');
+const rxPanel     = document.getElementById('rx-panel');
+const rxCloseBtn  = document.getElementById('rx-close-btn');
+const rxPrintBtn  = document.getElementById('rx-print-btn');
+const rxAddRowBtn = document.getElementById('rx-add-row-btn');
+
+let rxOpen = false;
+let rxMeds = []; // [{drug, dose, frequency, duration, qty}]
+
+if (rxToggleBtn) {
+    rxToggleBtn.addEventListener('click', () => {
+        rxOpen = !rxOpen;
+        if (rxPanel) rxPanel.classList.toggle('visible', rxOpen);
+        rxToggleBtn.classList.toggle('active', rxOpen);
+        if (rxOpen) loadRxFromServer();
+    });
+}
+
+if (rxCloseBtn) {
+    rxCloseBtn.addEventListener('click', () => {
+        rxOpen = false;
+        if (rxPanel) rxPanel.classList.remove('visible');
+        if (rxToggleBtn) rxToggleBtn.classList.remove('active');
+    });
+}
+
+if (rxAddRowBtn) {
+    rxAddRowBtn.addEventListener('click', () => {
+        rxMeds.push({ drug:'', dose:'', frequency:'', duration:'', qty:'' });
+        renderRxMedRows();
+    });
+}
+
+function renderRxMedRows() {
+    const tbody = document.getElementById('rx-med-tbody');
+    if (!tbody) return;
+    if (!rxMeds.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-2);font-size:12px;padding:10px;">No medications added</td></tr>';
+        return;
+    }
+    tbody.innerHTML = rxMeds.map((m, i) => `
+        <tr>
+            <td><input class="rx-field" type="text" value="${escVal(m.drug)}" placeholder="e.g. Amoxicillin 500mg" onchange="rxMeds[${i}].drug=this.value" /></td>
+            <td><input class="rx-field" type="text" value="${escVal(m.dose)}" placeholder="e.g. 1 cap" onchange="rxMeds[${i}].dose=this.value" /></td>
+            <td><input class="rx-field" type="text" value="${escVal(m.frequency)}" placeholder="e.g. TID" onchange="rxMeds[${i}].frequency=this.value" /></td>
+            <td><input class="rx-field" type="text" value="${escVal(m.duration)}" placeholder="e.g. 7 days" onchange="rxMeds[${i}].duration=this.value" /></td>
+            <td><input class="rx-field" type="text" value="${escVal(m.qty)}" placeholder="21" onchange="rxMeds[${i}].qty=this.value" style="width:50px;" /></td>
+            <td><button onclick="rxMeds.splice(${i},1);renderRxMedRows();" style="background:none;border:none;color:var(--red,#ef4444);cursor:pointer;"><i class="fas fa-times"></i></button></td>
+        </tr>`).join('');
+}
+
+function escVal(s) { return String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadRxFromServer() {
+    if (!roomName) return;
+    try {
+        const r = await fetch(`/api/prescriptions/room/${encodeURIComponent(roomName)}`);
+        if (!r.ok) return;
+        const list = await r.json();
+        if (!list.length) { renderRxMedRows(); return; }
+        const rx = list[list.length - 1]; // load most recent
+        if (document.getElementById('rx-patient-name'))    document.getElementById('rx-patient-name').value    = rx.patient_name || '';
+        if (document.getElementById('rx-patient-dob'))     document.getElementById('rx-patient-dob').value     = rx.patient_dob || '';
+        if (document.getElementById('rx-patient-email'))   document.getElementById('rx-patient-email').value   = rx.patient_email || '';
+        if (document.getElementById('rx-patient-address')) document.getElementById('rx-patient-address').value = rx.patient_address || '';
+        if (document.getElementById('rx-instructions'))    document.getElementById('rx-instructions').value    = rx.instructions || '';
+        if (document.getElementById('rx-provider'))        document.getElementById('rx-provider').value        = rx.provider_name || '';
+        rxMeds = JSON.parse(rx.medications || '[]');
+        renderRxMedRows();
+    } catch(e) { console.error('loadRx', e); }
+}
+
+async function saveRxToServer() {
+    if (!roomName) return;
+    // Capture current field values into rxMeds (in case direct typing hasn't fired onchange)
+    const tbody = document.getElementById('rx-med-tbody');
+    if (tbody) {
+        tbody.querySelectorAll('tr').forEach((row, i) => {
+            const inputs = row.querySelectorAll('input');
+            if (inputs.length === 5 && rxMeds[i]) {
+                rxMeds[i].drug      = inputs[0].value;
+                rxMeds[i].dose      = inputs[1].value;
+                rxMeds[i].frequency = inputs[2].value;
+                rxMeds[i].duration  = inputs[3].value;
+                rxMeds[i].qty       = inputs[4].value;
+            }
+        });
+    }
+    const body = {
+        room_name:       roomName,
+        patient_name:    document.getElementById('rx-patient-name')?.value    || '',
+        patient_email:   document.getElementById('rx-patient-email')?.value   || '',
+        patient_dob:     document.getElementById('rx-patient-dob')?.value     || '',
+        patient_address: document.getElementById('rx-patient-address')?.value || '',
+        instructions:    document.getElementById('rx-instructions')?.value    || '',
+        provider_name:   document.getElementById('rx-provider')?.value        || '',
+        medications:     JSON.stringify(rxMeds),
+    };
+    try {
+        await fetch('/api/prescriptions', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body),
+        });
+        showToast('Prescription saved');
+    } catch(e) { console.error('saveRx', e); }
+}
+
+if (rxPrintBtn) {
+    rxPrintBtn.addEventListener('click', async () => {
+        await saveRxToServer();
+        window.print();
+    });
 }
 
