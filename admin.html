@@ -272,6 +272,14 @@
                 </div>
             </div>
             <div class="panel-card">
+                <div style="margin-bottom:14px;">
+                    <div style="position:relative;">
+                        <i class="fas fa-search" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:13px;pointer-events:none;"></i>
+                        <input type="text" id="consents-search" placeholder="Search by name or email…"
+                            oninput="filterConsents()"
+                            style="width:100%;padding:9px 12px 9px 32px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);color:var(--text);font-size:13px;box-sizing:border-box;" />
+                    </div>
+                </div>
                 <div id="consents-list" class="data-list"></div>
             </div>
         </div>
@@ -736,6 +744,72 @@
     </div>
 </div>
 
+<!-- Consent View Modal -->
+<div id="consent-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:2100;align-items:center;justify-content:center;padding:16px;" onclick="if(event.target===this)closeConsentModal()">
+    <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-xl);width:100%;max-width:560px;box-shadow:0 24px 60px rgba(0,0,0,.65);max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;">
+        <!-- Header -->
+        <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div style="width:36px;height:36px;border-radius:10px;background:rgba(20,184,166,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <i class="fas fa-file-signature" style="color:var(--teal);font-size:15px;"></i>
+                </div>
+                <div>
+                    <div id="cm-title" style="font-size:1.05rem;font-weight:700;color:var(--text);">Consent Record</div>
+                    <div style="font-size:11px;color:var(--text-3);margin-top:1px;">Telehealth Consent Form</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button onclick="printConsentRecord()" title="Print" style="background:rgba(20,184,166,.1);border:1px solid rgba(20,184,166,.3);color:var(--teal);cursor:pointer;padding:6px 12px;border-radius:8px;font-size:12px;gap:5px;display:flex;align-items:center;"><i class="fas fa-print"></i> Print</button>
+                <button onclick="closeConsentModal()" style="background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text-2);cursor:pointer;font-size:1rem;padding:6px 9px;border-radius:8px;line-height:1;"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+        <!-- Body -->
+        <div style="padding:22px 24px;display:flex;flex-direction:column;gap:20px;">
+            <!-- Patient info grid -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;"><i class="fas fa-user" style="margin-right:4px;"></i>Patient Name</div>
+                    <div id="cm-name" style="font-size:14px;font-weight:600;color:var(--text);">—</div>
+                </div>
+                <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;"><i class="fas fa-envelope" style="margin-right:4px;"></i>Email</div>
+                    <div id="cm-email" style="font-size:13px;color:var(--text-2);word-break:break-all;">—</div>
+                </div>
+                <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;"><i class="fas fa-calendar-check" style="margin-right:4px;"></i>Signed Date</div>
+                    <div id="cm-signed" style="font-size:13px;color:var(--text-2);">—</div>
+                </div>
+                <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px;">
+                    <div style="font-size:10px;font-weight:700;letter-spacing:.07em;color:var(--text-3);text-transform:uppercase;margin-bottom:4px;"><i class="fas fa-video" style="margin-right:4px;"></i>Session / Room</div>
+                    <div id="cm-room" style="font-size:13px;color:var(--text-2);">—</div>
+                </div>
+            </div>
+            <!-- Consent statement -->
+            <div>
+                <div style="font-size:11px;font-weight:700;letter-spacing:.07em;color:var(--text-3);text-transform:uppercase;margin-bottom:8px;"><i class="fas fa-clipboard-list" style="margin-right:5px;"></i>Agreement</div>
+                <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r-md);padding:14px;font-size:12.5px;color:var(--text-2);line-height:1.7;">
+                    By signing this form, the patient confirmed that they:<br>
+                    <ul style="margin:8px 0 0 16px;padding:0;display:flex;flex-direction:column;gap:4px;">
+                        <li>Consent to receive telehealth medical services via video consultation</li>
+                        <li>Understand that telehealth involves electronic communication of their medical information</li>
+                        <li>Have the right to withdraw consent at any time</li>
+                        <li>Acknowledge the limitations and risks of telehealth services</li>
+                        <li>Agree to the collection and storage of their information for medical record purposes</li>
+                    </ul>
+                </div>
+            </div>
+            <!-- Signature -->
+            <div>
+                <div style="font-size:11px;font-weight:700;letter-spacing:.07em;color:var(--text-3);text-transform:uppercase;margin-bottom:8px;"><i class="fas fa-signature" style="margin-right:5px;"></i>Digital Signature</div>
+                <div style="background:#fff;border:1px solid var(--border);border-radius:var(--r-md);padding:12px;text-align:center;">
+                    <img id="cm-signature" src="" alt="Patient Signature" style="max-width:100%;max-height:180px;object-fit:contain;" />
+                </div>
+                <div id="cm-submitted" style="font-size:11px;color:var(--text-3);margin-top:6px;text-align:right;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- User Add/Edit Modal -->
 <div id="user-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;align-items:center;justify-content:center;padding:16px;">
     <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px 28px 22px;width:100%;max-width:500px;box-shadow:0 24px 60px rgba(0,0,0,.6);max-height:90vh;overflow-y:auto;">
@@ -1148,21 +1222,124 @@
         }
     }
 
+    let allConsents = [];
+
     async function loadConsents() {
         try {
-            const consents = await (await apiFetch('/api/consents')).json();
-            const list = document.getElementById('consents-list');
-            if (!consents.length) { list.innerHTML = '<div class="muted">No consent submissions yet.</div>'; return; }
-            list.innerHTML = consents.map(c => `
-                <div class="data-item">
-                    <div>
-                        <div class="item-title">${c.first_name} ${c.last_name}</div>
-                        <div class="item-meta">Signed ${c.signed_date}</div>
-                    </div>
-                    <img src="${c.signature}" alt="Signature" class="signature-thumb" />
-                </div>`).join('');
+            allConsents = await (await apiFetch('/api/consents')).json();
+            renderConsents(allConsents);
         } catch(e) { console.error(e); }
     }
+
+    function renderConsents(list) {
+        const el = document.getElementById('consents-list');
+        if (!list.length) { el.innerHTML = '<div class="muted">No consent submissions yet.</div>'; return; }
+        el.innerHTML = list.map(c => {
+            const data = encodeURIComponent(JSON.stringify(c));
+            const hasEmail = c.email && c.email.trim();
+            return `
+                <div class="data-item" style="gap:12px;">
+                    <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
+                        <div style="width:36px;height:36px;border-radius:50%;background:rgba(20,184,166,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                            <i class="fas fa-user" style="color:var(--teal);font-size:14px;"></i>
+                        </div>
+                        <div style="min-width:0;">
+                            <div class="item-title">${c.first_name} ${c.last_name}</div>
+                            <div class="item-meta">${hasEmail ? '<i class="fas fa-envelope" style="margin-right:4px;"></i>' + c.email + ' &nbsp;·&nbsp; ' : ''}Signed ${c.signed_date}</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                        <img src="${c.signature}" alt="Signature" class="signature-thumb" style="cursor:pointer;" onclick="viewConsent('${data}')" title="Click to view full consent" />
+                        <button onclick="viewConsent('${data}')" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text-2);cursor:pointer;font-size:12px;gap:5px;display:flex;align-items:center;white-space:nowrap;"><i class="fas fa-eye"></i> View</button>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    function filterConsents() {
+        const q = document.getElementById('consents-search').value.trim().toLowerCase();
+        if (!q) { renderConsents(allConsents); return; }
+        renderConsents(allConsents.filter(c =>
+            (c.first_name + ' ' + c.last_name).toLowerCase().includes(q) ||
+            (c.email || '').toLowerCase().includes(q) ||
+            (c.room_name || '').toLowerCase().includes(q)
+        ));
+    }
+
+    function viewConsent(dataEncoded) {
+        const c = typeof dataEncoded === 'string' ? JSON.parse(decodeURIComponent(dataEncoded)) : dataEncoded;
+        document.getElementById('cm-title').textContent = c.first_name + ' ' + c.last_name;
+        document.getElementById('cm-name').textContent = c.first_name + ' ' + c.last_name;
+        document.getElementById('cm-email').textContent = c.email && c.email.trim() ? c.email : '—';
+        document.getElementById('cm-signed').textContent = c.signed_date || '—';
+        document.getElementById('cm-room').textContent = c.room_name && c.room_name.trim() ? c.room_name : '—';
+        document.getElementById('cm-signature').src = c.signature || '';
+        const ts = c.created_at ? new Date(c.created_at).toLocaleString() : '';
+        document.getElementById('cm-submitted').textContent = ts ? 'Submitted: ' + ts : '';
+        const modal = document.getElementById('consent-modal');
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeConsentModal() {
+        document.getElementById('consent-modal').style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    function printConsentRecord() {
+        const name = document.getElementById('cm-name').textContent;
+        const email = document.getElementById('cm-email').textContent;
+        const signed = document.getElementById('cm-signed').textContent;
+        const room = document.getElementById('cm-room').textContent;
+        const submitted = document.getElementById('cm-submitted').textContent;
+        const sigSrc = document.getElementById('cm-signature').src;
+        const win = window.open('', '_blank', 'width=700,height=900');
+        win.document.write(`<!DOCTYPE html><html><head><title>Consent Form — ${name}</title>
+        <style>
+            body { font-family: Arial, sans-serif; padding: 40px; color: #111; }
+            h1 { font-size: 20px; margin-bottom: 4px; }
+            .sub { color: #666; font-size: 13px; margin-bottom: 24px; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+            .field { border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
+            .field label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #888; display: block; margin-bottom: 4px; }
+            .field span { font-size: 14px; }
+            .agreement { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 24px; font-size: 13px; line-height: 1.7; }
+            .sig-box { border: 2px solid #333; border-radius: 8px; padding: 16px; text-align: center; margin-bottom: 12px; }
+            .sig-box img { max-width: 100%; max-height: 150px; }
+            .footer { font-size: 11px; color: #888; text-align: right; }
+            @media print { body { padding: 20px; } }
+        </style></head><body>
+        <h1>Telehealth Consent Form</h1>
+        <div class="sub">Visiting Medical Physician Inc.</div>
+        <div class="grid">
+            <div class="field"><label>Patient Name</label><span>${name}</span></div>
+            <div class="field"><label>Email</label><span>${email}</span></div>
+            <div class="field"><label>Signed Date</label><span>${signed}</span></div>
+            <div class="field"><label>Session / Room</label><span>${room}</span></div>
+        </div>
+        <div class="agreement">
+            <strong>The patient confirmed that they:</strong>
+            <ul>
+                <li>Consent to receive telehealth medical services via video consultation</li>
+                <li>Understand that telehealth involves electronic communication of their medical information</li>
+                <li>Have the right to withdraw consent at any time</li>
+                <li>Acknowledge the limitations and risks of telehealth services</li>
+                <li>Agree to the collection and storage of their information for medical record purposes</li>
+            </ul>
+        </div>
+        <div class="field" style="margin-bottom:6px;"><label>Digital Signature</label></div>
+        <div class="sig-box"><img src="${sigSrc}" /></div>
+        <div class="footer">${submitted}</div>
+        </body></html>`);
+        win.document.close();
+        win.focus();
+        setTimeout(() => win.print(), 400);
+    }
+
+    // Close consent modal on ESC
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && document.getElementById('consent-modal').style.display === 'flex') closeConsentModal();
+    });
 
     function showDashboard() {
         loginShell.style.display = 'none';
