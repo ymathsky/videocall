@@ -13,6 +13,48 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 let twilioClient = null;
 try { twilioClient = require('twilio'); } catch(e) { console.warn('[SMS] twilio package not installed — SMS disabled'); }
 
+// ── Google Drive setup ───────────────────────────────────────────────────────
+let driveClient = null;
+try {
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_JSON && process.env.GOOGLE_DRIVE_FOLDER_ID) {
+    const { google } = require('googleapis');
+    const keyJson = JSON.parse(
+      Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_JSON, 'base64').toString('utf8')
+    );
+    const auth = new google.auth.GoogleAuth({
+      credentials: keyJson,
+      scopes: ['https://www.googleapis.com/auth/drive.file'],
+    });
+    driveClient = google.drive({ version: 'v3', auth });
+    console.log('[Drive] Google Drive integration enabled — folder:', process.env.GOOGLE_DRIVE_FOLDER_ID);
+  } else {
+    console.warn('[Drive] GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_DRIVE_FOLDER_ID not set — recordings will be stored locally.');
+  }
+} catch(e) {
+  console.warn('[Drive] Failed to init Google Drive:', e.message);
+}
+
+async function uploadToDrive(filePath, filename, mimeType = 'video/webm') {
+  if (!driveClient) return null;
+  const fileMetadata = { name: filename, parents: [process.env.GOOGLE_DRIVE_FOLDER_ID] };
+  const media = { mimeType, body: fs.createReadStream(filePath) };
+  const resp = await driveClient.files.create({
+    requestBody: fileMetadata, media,
+    fields: 'id,webViewLink,webContentLink',
+  });
+  // Make readable by anyone with the link so admin can open it
+  await driveClient.permissions.create({
+    fileId: resp.data.id,
+    requestBody: { role: 'reader', type: 'anyone' },
+  });
+  return resp.data;
+}
+
+async function deleteFromDrive(fileId) {
+  if (!driveClient || !fileId) return;
+  try { await driveClient.files.delete({ fileId }); } catch(e) { console.warn('[Drive] delete error:', e.message); }
+}
+
 // ── Gemini AI setup ───────────────────────────────────────────────────────────
 let geminiModel = null;
 if (process.env.GEMINI_API_KEY) {
@@ -270,8 +312,13 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
       size_bytes INTEGER DEFAULT 0,
       duration_seconds INTEGER DEFAULT 0,
       uploaded_by TEXT DEFAULT 'host',
+      drive_file_id TEXT DEFAULT '',
+      drive_view_link TEXT DEFAULT '',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+    // Migrate existing tables that are missing the Drive columns
+    db.run(`ALTER TABLE recordings ADD COLUMN drive_file_id TEXT DEFAULT ''`, () => {});
+    db.run(`ALTER TABLE recordings ADD COLUMN drive_view_link TEXT DEFAULT ''`, () => {});
   }
 });
 
@@ -860,25 +907,41 @@ app.delete('/api/prescriptions/:id', requireAdmin, (req, res) => {
 app.post('/api/recordings/upload',
   requireAdmin,
   express.raw({ type: ['video/webm', 'video/mp4', 'application/octet-stream'], limit: '500mb' }),
-  (req, res) => {
+  async (req, res) => {
     const { room_name, duration } = req.query;
     if (!Buffer.isBuffer(req.body) || req.body.length === 0)
       return res.status(400).json({ error: 'No recording data received.' });
     const filename = `rec_${(room_name || 'unknown').replace(/[^a-zA-Z0-9_-]/g,'_')}_${Date.now()}.webm`;
     const filePath = path.join(recordingsDir, filename);
-    fs.writeFile(filePath, req.body, err => {
-      if (err) return res.status(500).json({ error: err.message });
+    try {
+      await fs.promises.writeFile(filePath, req.body);
       const sizeBytes = req.body.length;
       const durSec    = parseInt(duration) || 0;
+      let driveFileId = '', driveViewLink = '';
+      if (driveClient) {
+        try {
+          const driveData = await uploadToDrive(filePath, filename);
+          if (driveData) {
+            driveFileId   = driveData.id           || '';
+            driveViewLink = driveData.webViewLink  || '';
+            fs.unlink(filePath, () => {}); // remove local copy once safely on Drive
+          }
+        } catch(driveErr) {
+          console.error('[Drive] Upload error:', driveErr.message); // keep local as fallback
+        }
+      }
       db.run(
-        `INSERT INTO recordings (room_name, filename, size_bytes, duration_seconds) VALUES (?,?,?,?)`,
-        [room_name || '', filename, sizeBytes, durSec],
+        `INSERT INTO recordings (room_name, filename, size_bytes, duration_seconds, drive_file_id, drive_view_link) VALUES (?,?,?,?,?,?)`,
+        [room_name || '', filename, sizeBytes, durSec, driveFileId, driveViewLink],
         function(e) {
           if (e) return res.status(500).json({ error: e.message });
-          res.json({ id: this.lastID, filename, message: 'Recording saved to server' });
+          const dest = driveViewLink ? 'Google Drive' : 'server';
+          res.json({ id: this.lastID, filename, drive_view_link: driveViewLink, message: `Recording saved to ${dest}` });
         }
       );
-    });
+    } catch(err) {
+      res.status(500).json({ error: err.message });
+    }
   }
 );
 
@@ -890,21 +953,24 @@ app.get('/api/recordings', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/recordings/:id', requireAdmin, (req, res) => {
-  db.get(`SELECT filename FROM recordings WHERE id=?`, [req.params.id], (err, row) => {
+  db.get(`SELECT filename, drive_file_id FROM recordings WHERE id=?`, [req.params.id], (err, row) => {
     if (err || !row) return res.status(404).json({ error: 'Recording not found' });
-    const filePath = path.join(recordingsDir, row.filename);
     db.run(`DELETE FROM recordings WHERE id=?`, [req.params.id], () => {
-      fs.unlink(filePath, () => {}); // delete file, ignore errors
+      fs.unlink(path.join(recordingsDir, row.filename), () => {}); // remove local file if present
+      if (row.drive_file_id) deleteFromDrive(row.drive_file_id);   // remove from Drive
       res.json({ message: 'Deleted' });
     });
   });
 });
 
-// Serve recording files (admin-only static handler)
+// Serve recording files — redirect to Drive if available, otherwise serve local
 app.get('/recordings/:filename', requireAdmin, (req, res) => {
   const safe = path.basename(req.params.filename);
-  res.sendFile(path.join(recordingsDir, safe), err => {
-    if (err) res.status(404).json({ error: 'File not found' });
+  db.get(`SELECT drive_view_link FROM recordings WHERE filename=?`, [safe], (err, row) => {
+    if (row && row.drive_view_link) return res.redirect(row.drive_view_link);
+    res.sendFile(path.join(recordingsDir, safe), e => {
+      if (e) res.status(404).json({ error: 'File not found' });
+    });
   });
 });
 
