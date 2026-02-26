@@ -9,6 +9,165 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* ── Consent form enhancements ── */
+        .cf-header-img {
+            width: 100%; display: block;
+            border-bottom: 1px solid var(--border);
+            border-radius: var(--r-xl) var(--r-xl) 0 0;
+            object-fit: cover;
+            max-height: 140px;
+        }
+        .cf-steps {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0; padding: 18px 28px 0;
+        }
+        .cf-step {
+            display: flex; flex-direction: column; align-items: center; gap: 5px;
+            flex: 1; position: relative; text-align: center;
+        }
+        .cf-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 14px; left: calc(50% + 18px); right: calc(-50% + 18px);
+            height: 2px; background: var(--border); z-index: 0;
+        }
+        .cf-step-num {
+            width: 30px; height: 30px; border-radius: 50%;
+            background: var(--bg-surface); border: 2px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; color: var(--text-3); z-index: 1;
+            transition: all .2s;
+        }
+        .cf-step.active .cf-step-num {
+            background: var(--teal); border-color: var(--teal); color: #fff;
+            box-shadow: 0 0 0 4px rgba(20,184,166,.15);
+        }
+        .cf-step.done .cf-step-num {
+            background: rgba(20,184,166,.15); border-color: var(--teal); color: var(--teal);
+        }
+        .cf-step-label { font-size: 10px; font-weight: 600; color: var(--text-3); letter-spacing: .04em; text-transform: uppercase; }
+        .cf-step.active .cf-step-label { color: var(--teal); }
+        .cf-step.done .cf-step-label { color: var(--text-2); }
+
+        .cf-divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+        /* Section cards */
+        .cf-card {
+            border: 1px solid var(--border); border-radius: var(--r-lg);
+            overflow: hidden; margin-bottom: 18px;
+        }
+        .cf-card-head {
+            display: flex; align-items: center; gap: 12px;
+            padding: 14px 18px;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+        }
+        .cf-card-num {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: rgba(20,184,166,.12); border: 1.5px solid rgba(20,184,166,.35);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 700; color: var(--teal); flex-shrink: 0;
+        }
+        .cf-card-head-text { font-size: 13px; font-weight: 700; color: var(--text); }
+        .cf-card-head-sub { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+        .cf-card-body { padding: 20px 20px 16px; }
+
+        /* Consent items as cards */
+        .cf-consent-items { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+        .cf-consent-item {
+            display: flex; align-items: flex-start; gap: 12px;
+            padding: 11px 14px;
+            background: rgba(20,184,166,.04); border: 1px solid rgba(20,184,166,.12);
+            border-radius: var(--r-md);
+        }
+        .cf-consent-item-icon {
+            width: 22px; height: 22px; border-radius: 50%;
+            background: rgba(20,184,166,.15); color: var(--teal);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px; flex-shrink: 0; margin-top: 1px;
+        }
+        .cf-consent-item p { font-size: 13px; color: var(--text-2); line-height: 1.55; margin: 0; }
+
+        /* Agree checkbox */
+        .cf-agree {
+            display: flex; align-items: flex-start; gap: 12px;
+            padding: 14px 16px; margin-top: 16px;
+            background: rgba(20,184,166,.06); border: 1.5px solid rgba(20,184,166,.25);
+            border-radius: var(--r-md); cursor: pointer;
+        }
+        .cf-agree input[type=checkbox] {
+            width: 18px; height: 18px; accent-color: var(--teal);
+            cursor: pointer; flex-shrink: 0; margin-top: 2px;
+        }
+        .cf-agree label { font-size: 13px; color: var(--text); font-weight: 500; cursor: pointer; line-height: 1.5; }
+
+        /* Signature pad */
+        .cf-sig-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); margin-bottom: 8px; display: block; }
+        .cf-signature-pad-wrapper {
+            border: 2px dashed rgba(20,184,166,.4);
+            border-radius: var(--r-md); background: #fff; overflow: hidden;
+            position: relative; transition: border-color .2s;
+        }
+        .cf-signature-pad-wrapper:hover,
+        .cf-signature-pad-wrapper:focus-within { border-color: var(--teal); border-style: solid; }
+        .cf-signature-pad-wrapper canvas { display: block; width: 100%; height: 190px; cursor: crosshair; }
+        .cf-sig-hint {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%,-50%);
+            display: flex; flex-direction: column; align-items: center; gap: 6px;
+            pointer-events: none;
+        }
+        .cf-sig-hint i { font-size: 22px; color: #ccc; }
+        .cf-sig-hint span { font-size: 12px; color: #bbb; }
+
+        /* Date row */
+        .cf-date-row {
+            display: flex; gap: 14px; align-items: flex-end; margin-top: 14px;
+        }
+        .cf-date-row .form-group { flex: 1; margin: 0; }
+
+        /* Submit strip */
+        .cf-submit-strip {
+            padding: 20px 24px;
+            border-top: 1px solid var(--border);
+            background: var(--bg-surface);
+        }
+        .cf-submit-badges {
+            display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;
+        }
+        .cf-badge {
+            display: flex; align-items: center; gap: 6px;
+            padding: 5px 12px; border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--bg); font-size: 11px; color: var(--text-3);
+            font-weight: 500;
+        }
+        .cf-badge i { color: var(--teal); font-size: 11px; }
+        .cf-submit-action {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 14px; flex-wrap: wrap;
+        }
+        .cf-submit-note { font-size: 12px; color: var(--text-3); max-width: 340px; line-height: 1.5; }
+
+        /* Meeting notice */
+        .cf-meeting-notice {
+            display: none; margin: 20px 20px 0;
+            background: rgba(14,165,233,.08); border: 1px solid rgba(14,165,233,.28);
+            border-radius: var(--r-md); padding: 14px 18px;
+            align-items: center; gap: 14px;
+        }
+        .cf-meeting-notice.visible { display: flex; }
+
+        @media (max-width: 560px) {
+            .cf-steps { padding: 14px 12px 0; gap: 0; }
+            .cf-step-label { font-size: 9px; }
+            .cf-card-body { padding: 16px 14px; }
+            .cf-submit-action { flex-direction: column; align-items: stretch; }
+            .cf-submit-action .btn-submit-consent { width: 100%; justify-content: center; }
+            .cf-date-row { flex-direction: column; }
+        }
+    </style>
 </head>
 <body class="consent-body-scroll">
 
@@ -20,101 +179,191 @@
             <div class="consent-brand-icon"><i class="fas fa-heartbeat"></i></div>
             <span id="consent-brand-name">TeleHealth Connect</span>
         </div>
-        <span style="margin-left:auto;font-size:12px;color:var(--text-3);">Secure &amp; Confidential</span>
+        <span style="margin-left:auto;font-size:12px;color:var(--text-3);display:flex;align-items:center;gap:6px;">
+            <i class="fas fa-lock" style="color:var(--teal);"></i> Secure &amp; Confidential
+        </span>
     </div>
 
     <!-- Form card -->
     <div class="consent-container">
 
-        <!-- Banner header -->
-        <div class="consent-banner">
+        <!-- Clinic header image -->
+        <img class="cf-header-img"
+             src="https://www.jotform.com/uploads/phavlfhabmdos/form_files/vmp%20header.2026.6998d8bc7cc143.78787553.png"
+             alt="Visiting Medical Physician Inc."
+             onerror="this.style.display='none'" />
+
+        <!-- Banner text -->
+        <div class="consent-banner" style="border-radius:0;">
             <div class="consent-banner-icon"><i class="fas fa-file-signature"></i></div>
             <div>
-                <h2>Telehealth Consent Form</h2>
+                <h2 style="font-size:1.2rem;">Telehealth Consent Form</h2>
                 <p>Please read carefully and sign below to confirm your consent for telehealth services</p>
             </div>
         </div>
 
-        <!-- Meeting redirect notice (shown when ?room= param is present) -->
-        <div id="meeting-notice" style="display:none;background:rgba(14,165,233,.08);border:1px solid rgba(14,165,233,.25);border-radius:var(--r-md);padding:14px 18px;margin-bottom:20px;display:none;align-items:center;gap:14px;">
-            <div style="font-size:1.4rem;color:var(--teal);flex-shrink:0;"><i class="fas fa-video"></i></div>
+        <!-- Step indicators -->
+        <div class="cf-steps">
+            <div class="cf-step active" id="step-1">
+                <div class="cf-step-num">1</div>
+                <div class="cf-step-label">Patient Info</div>
+            </div>
+            <div class="cf-step" id="step-2">
+                <div class="cf-step-num">2</div>
+                <div class="cf-step-label">Review</div>
+            </div>
+            <div class="cf-step" id="step-3">
+                <div class="cf-step-num">3</div>
+                <div class="cf-step-label">Sign</div>
+            </div>
+        </div>
+
+        <!-- Meeting redirect notice -->
+        <div id="meeting-notice" class="cf-meeting-notice">
+            <div style="font-size:1.5rem;color:var(--teal);flex-shrink:0;"><i class="fas fa-video"></i></div>
             <div>
-                <div style="font-size:13px;font-weight:600;color:var(--teal);margin-bottom:2px;">You have a consultation waiting</div>
-                <div style="font-size:13px;color:var(--text-2);">After signing this form you will be automatically redirected to your video session — Room: <strong id="notice-room" style="color:var(--text);"></strong></div>
+                <div style="font-size:13px;font-weight:700;color:var(--teal);margin-bottom:3px;">You have a consultation waiting</div>
+                <div style="font-size:13px;color:var(--text-2);">After signing you will be automatically redirected to your video session &mdash; Room: <strong id="notice-room" style="color:var(--text);"></strong></div>
             </div>
         </div>
 
         <form id="consentForm">
         <div class="consent-body">
 
-            <!-- Patient Information -->
-            <div class="consent-section">
-                <div class="consent-section-title"><i class="fas fa-user-circle"></i>&nbsp; Patient Information</div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="firstName">First Name</label>
-                        <input type="text" id="firstName" placeholder="Jane" required />
-                    </div>
-                    <div class="form-group">
-                        <label for="lastName">Last Name</label>
-                        <input type="text" id="lastName" placeholder="Doe" required />
+            <!-- STEP 1 – Patient Information -->
+            <div class="cf-card" id="card-step-1">
+                <div class="cf-card-head">
+                    <div class="cf-card-num">1</div>
+                    <div>
+                        <div class="cf-card-head-text"><i class="fas fa-user-circle" style="margin-right:6px;color:var(--teal);"></i>Patient Information</div>
+                        <div class="cf-card-head-sub">Your basic details for this consultation</div>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="patientEmail">Email Address <span style="color:var(--text-3);font-weight:400;">(optional &mdash; receive a visit summary after the call)</span></label>
-                    <input type="email" id="patientEmail" placeholder="jane@example.com" />
+                <div class="cf-card-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="firstName">First Name <span style="color:#ef4444;">*</span></label>
+                            <input type="text" id="firstName" placeholder="Jane" required autocomplete="given-name" />
+                        </div>
+                        <div class="form-group">
+                            <label for="lastName">Last Name <span style="color:#ef4444;">*</span></label>
+                            <input type="text" id="lastName" placeholder="Doe" required autocomplete="family-name" />
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label for="patientEmail">
+                            Email Address
+                            <span style="color:var(--text-3);font-weight:400;">&ensp;optional &mdash; receive a visit summary after the call</span>
+                        </label>
+                        <div style="position:relative;">
+                            <i class="fas fa-envelope" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:13px;pointer-events:none;"></i>
+                            <input type="email" id="patientEmail" placeholder="jane@example.com" autocomplete="email" style="padding-left:34px;" />
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Consent Content -->
-            <div class="consent-section">
-                <div class="consent-section-title"><i class="fas fa-clipboard-list"></i>&nbsp; Consent for Telehealth Services</div>
-                <div class="consent-text-box">
-                    <p>Telehealth involves the use of electronic communications — such as live video and audio technology — to deliver healthcare services when the patient and provider are in different locations.</p>
-                    <p><strong>By signing this form, I acknowledge and agree to the following:</strong></p>
-                    <ul class="consent-list">
-                        <li>I understand that my healthcare provider may use telehealth to diagnose, consult, treat, or educate me.</li>
-                        <li>I understand that telehealth services may be provided via live video, audio, or other electronic means.</li>
-                        <li>I acknowledge that telehealth offers convenient access but has limitations, and that certain conditions may require an in-person visit.</li>
-                        <li>I understand that reasonable efforts will be made to protect the privacy and security of my health information.</li>
-                        <li>I acknowledge that electronic communications carry potential risks, including technical failures or, in rare cases, unauthorized access.</li>
-                        <li>I understand that I may refuse or discontinue telehealth services at any time without affecting my right to future care.</li>
-                        <li>I voluntarily consent to receive healthcare services via telehealth.</li>
-                    </ul>
+            <!-- STEP 2 – Consent for Telehealth Services -->
+            <div class="cf-card" id="card-step-2">
+                <div class="cf-card-head">
+                    <div class="cf-card-num">2</div>
+                    <div>
+                        <div class="cf-card-head-text"><i class="fas fa-clipboard-list" style="margin-right:6px;color:var(--teal);"></i>Consent for Telehealth Services</div>
+                        <div class="cf-card-head-sub">Please read all items carefully before signing</div>
+                    </div>
+                </div>
+                <div class="cf-card-body">
+                    <p style="font-size:13px;color:var(--text-2);line-height:1.65;margin-bottom:4px;">
+                        Telehealth involves the use of electronic communications — such as live video and audio technology — to deliver healthcare services when the patient and provider are in different locations.
+                    </p>
+                    <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin:14px 0 4px;">By signing, I acknowledge and agree to all of the following:</p>
+                    <div class="cf-consent-items">
+                        <div class="cf-consent-item">
+                            <div class="cf-consent-item-icon"><i class="fas fa-check"></i></div>
+                            <p>My healthcare provider may use telehealth to diagnose, consult, treat, or educate me.</p>
+                        </div>
+                        <div class="cf-consent-item">
+                            <div class="cf-consent-item-icon"><i class="fas fa-check"></i></div>
+                            <p>Telehealth services may be provided via live video, audio, or other electronic means.</p>
+                        </div>
+                        <div class="cf-consent-item">
+                            <div class="cf-consent-item-icon"><i class="fas fa-check"></i></div>
+                            <p>Telehealth offers convenient access but has limitations; certain conditions may require an in-person visit.</p>
+                        </div>
+                        <div class="cf-consent-item">
+                            <div class="cf-consent-item-icon"><i class="fas fa-check"></i></div>
+                            <p>Reasonable efforts will be made to protect the privacy and security of my health information.</p>
+                        </div>
+                        <div class="cf-consent-item">
+                            <div class="cf-consent-item-icon"><i class="fas fa-check"></i></div>
+                            <p>Electronic communications carry potential risks, including technical failures or, in rare cases, unauthorized access.</p>
+                        </div>
+                        <div class="cf-consent-item">
+                            <div class="cf-consent-item-icon"><i class="fas fa-check"></i></div>
+                            <p>I may refuse or discontinue telehealth services at any time without affecting my right to future care.</p>
+                        </div>
+                        <div class="cf-consent-item">
+                            <div class="cf-consent-item-icon"><i class="fas fa-check"></i></div>
+                            <p>I voluntarily consent to receive healthcare services via telehealth.</p>
+                        </div>
+                    </div>
+
+                    <!-- Agree checkbox -->
+                    <label class="cf-agree" for="agreeCheck">
+                        <input type="checkbox" id="agreeCheck" required />
+                        <span>I have read and understand all of the above. I had the opportunity to ask questions, and all my questions were answered to my satisfaction. I <strong>voluntarily agree</strong> to receive telehealth services.</span>
+                    </label>
                 </div>
             </div>
 
-            <!-- Acknowledgment & Signature -->
-            <div class="consent-section">
-                <div class="consent-section-title"><i class="fas fa-pen-nib"></i>&nbsp; Patient Acknowledgment &amp; Signature</div>
-                <p style="font-size:13px;color:var(--text-2);margin-bottom:18px;">I have read and understand the information above. I had the opportunity to ask questions, and all my questions were answered to my satisfaction.</p>
-
-                <div class="signature-area form-group">
-                    <label>Your Signature</label>
-                    <div class="signature-pad-wrapper">
+            <!-- STEP 3 – Signature -->
+            <div class="cf-card" id="card-step-3">
+                <div class="cf-card-head">
+                    <div class="cf-card-num">3</div>
+                    <div>
+                        <div class="cf-card-head-text"><i class="fas fa-pen-nib" style="margin-right:6px;color:var(--teal);"></i>Digital Signature</div>
+                        <div class="cf-card-head-sub">Sign below with your finger or mouse to complete</div>
+                    </div>
+                </div>
+                <div class="cf-card-body">
+                    <span class="cf-sig-label">Draw your signature</span>
+                    <div class="cf-signature-pad-wrapper">
                         <canvas id="signatureCanvas"></canvas>
-                        <span class="sig-hint">Draw your signature here</span>
+                        <div class="cf-sig-hint" id="sig-hint">
+                            <i class="fas fa-signature"></i>
+                            <span>Sign here</span>
+                        </div>
                     </div>
-                    <div class="signature-actions">
-                        <button type="button" class="btn-clear-sig" id="clearSignature"><i class="fas fa-eraser"></i> Clear</button>
+                    <div class="signature-actions" style="margin-top:8px;">
+                        <button type="button" class="btn-clear-sig" id="clearSignature"><i class="fas fa-eraser"></i> Clear Signature</button>
                     </div>
                     <input type="hidden" id="signatureInput" name="signature" />
-                </div>
 
-                <div class="form-group">
-                    <label for="date">Date</label>
-                    <input type="date" id="date" required />
+                    <div class="cf-date-row">
+                        <div class="form-group">
+                            <label for="date">Date <span style="color:#ef4444;">*</span></label>
+                            <input type="date" id="date" required />
+                        </div>
+                    </div>
                 </div>
             </div>
 
         </div>
 
-        <!-- Submit row -->
-        <div class="consent-submit-row">
-            <p><i class="fas fa-lock" style="color:var(--teal);margin-right:4px;"></i>Your information is transmitted securely and stored in accordance with applicable privacy regulations.</p>
-            <button type="submit" class="btn-submit-consent" id="submit-btn">
-                <i class="fas fa-check-circle"></i> <span id="submit-label">I Consent &amp; Submit</span>
-            </button>
+        <!-- Submit strip -->
+        <div class="cf-submit-strip">
+            <div class="cf-submit-badges">
+                <span class="cf-badge"><i class="fas fa-lock"></i> Encrypted</span>
+                <span class="cf-badge"><i class="fas fa-shield-alt"></i> HIPAA Aware</span>
+                <span class="cf-badge"><i class="fas fa-eye-slash"></i> Confidential</span>
+                <span class="cf-badge"><i class="fas fa-database"></i> Securely Stored</span>
+            </div>
+            <div class="cf-submit-action">
+                <p class="cf-submit-note"><i class="fas fa-info-circle" style="color:var(--teal);margin-right:4px;"></i>Your information is transmitted securely and stored in accordance with applicable privacy regulations.</p>
+                <button type="submit" class="btn-submit-consent" id="submit-btn" style="display:flex;align-items:center;gap:8px;padding:13px 32px;font-size:15px;">
+                    <i class="fas fa-check-circle"></i> <span id="submit-label">I Consent &amp; Submit</span>
+                </button>
+            </div>
         </div>
         </form>
     </div>
@@ -153,15 +402,41 @@
 
     if (roomParam) {
         const notice = document.getElementById('meeting-notice');
-        notice.style.display = 'flex';
+        notice.classList.add('visible');
         document.getElementById('notice-room').textContent = roomParam;
         document.getElementById('submit-label').textContent = 'I Consent & Join Meeting';
     }
 
+    /* ─── Step indicator activation ─── */
+    (function() {
+        const s1 = document.getElementById('step-1');
+        const s2 = document.getElementById('step-2');
+        const s3 = document.getElementById('step-3');
+        function setStep(n) {
+            [s1, s2, s3].forEach((s, i) => {
+                s.classList.remove('active', 'done');
+                if (i + 1 < n) s.classList.add('done');
+                if (i + 1 === n) s.classList.add('active');
+            });
+        }
+        const obs = new IntersectionObserver(entries => {
+            entries.forEach(e => {
+                if (!e.isIntersecting) return;
+                if (e.target.id === 'card-step-1') setStep(1);
+                if (e.target.id === 'card-step-2') setStep(2);
+                if (e.target.id === 'card-step-3') setStep(3);
+            });
+        }, { threshold: 0.4 });
+        ['card-step-1','card-step-2','card-step-3'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) obs.observe(el);
+        });
+    })();
+
     /* ─── Signature pad ─── */
     const canvas = document.getElementById('signatureCanvas');
     const ctx    = canvas.getContext('2d');
-    const hint   = document.querySelector('.sig-hint');
+    const hint   = document.getElementById('sig-hint');
     let drawing  = false;
     let hasSig   = false;
 
@@ -211,6 +486,19 @@
     /* ─── Form submit ─── */
     document.getElementById('consentForm').addEventListener('submit', async e => {
         e.preventDefault();
+
+        if (!hasSig) {
+            showToast('Please draw your signature before submitting.');
+            document.getElementById('card-step-3').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.querySelector('.cf-signature-pad-wrapper').style.borderColor = '#ef4444';
+            document.querySelector('.cf-signature-pad-wrapper').style.borderStyle = 'solid';
+            setTimeout(() => {
+                document.querySelector('.cf-signature-pad-wrapper').style.borderColor = '';
+                document.querySelector('.cf-signature-pad-wrapper').style.borderStyle = '';
+            }, 2500);
+            return;
+        }
+
         const sig = canvas.toDataURL();
         document.getElementById('signatureInput').value = sig;
 
@@ -282,302 +570,4 @@
 
 </body>
 </html>
-    <style>
-        .consent-container {
-            max-width: 800px;
-            width: 90%;
-            margin: 40px auto;
-            padding: 40px;
-            background-color: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-            color: var(--text-color);
-        }
 
-        .form-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .form-header img {
-            max-width: 100%;
-            height: auto;
-            margin-bottom: 20px;
-            border-radius: 8px;
-        }
-
-        .form-section {
-            margin-bottom: 30px;
-        }
-
-        .form-section h3 {
-            border-bottom: 1px solid #444;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-            color: var(--primary-color);
-        }
-
-        .form-row {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 15px;
-        }
-
-        .form-group {
-            flex: 1;
-            margin-bottom: 15px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-
-        .form-group input[type="text"],
-        .form-group input[type="date"] {
-            width: 100%;
-            padding: 12px;
-            background-color: #333;
-            border: 1px solid #444;
-            border-radius: 6px;
-            color: white;
-            font-size: 16px;
-        }
-
-        .consent-text {
-            background-color: rgba(255, 255, 255, 0.05);
-            padding: 20px;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            line-height: 1.6;
-            margin-bottom: 20px;
-        }
-
-        .consent-list {
-            list-style-type: none;
-            padding: 0;
-        }
-
-        .consent-list li {
-            position: relative;
-            padding-left: 25px;
-            margin-bottom: 10px;
-        }
-
-        .consent-list li::before {
-            content: "✓";
-            position: absolute;
-            left: 0;
-            color: var(--primary-color);
-            font-weight: bold;
-        }
-
-        .signature-pad {
-            border: 1px solid #444;
-            background-color: #fff;
-            border-radius: 6px;
-            cursor: crosshair;
-            width: 100%;
-            height: 200px;
-        }
-
-        .signature-actions {
-            margin-top: 10px;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-
-        .btn-clear {
-            background-color: #555;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        .btn-submit {
-            width: 100%;
-            padding: 15px;
-            font-size: 18px;
-            margin-top: 20px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .btn-submit:hover {
-            background-color: var(--hover-color);
-        }
-    </style>
-</head>
-<body>
-
-<div class="consent-container">
-    <div class="form-header">
-        <!-- Using the image from the JotForm as reference, but allowing it to be replaced -->
-        <img src="https://www.jotform.com/uploads/phavlfhabmdos/form_files/vmp%20header.2026.6998d8bc7cc143.78787553.png" alt="Header">
-        <h2>TELEHEALTH CONSENT FORM</h2>
-    </div>
-
-    <form id="consentForm">
-        <div class="form-section">
-            <h3>Patient Information</h3>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="firstName">First Name</label>
-                    <input type="text" id="firstName" name="firstName" required>
-                </div>
-                <div class="form-group">
-                    <label for="lastName">Last Name</label>
-                    <input type="text" id="lastName" name="lastName" required>
-                </div>
-            </div>
-        </div>
-
-        <div class="form-section">
-            <h3>Consent for Telehealth Services</h3>
-            <div class="consent-text">
-                <p>Telehealth involves the use of electronic communications (such as video and/or audio technology) to provide healthcare services when the patient and provider are in different locations.</p>
-                <p><strong>By signing this form, I acknowledge and agree to the following:</strong></p>
-                <ul class="consent-list">
-                    <li>I understand that my healthcare provider may use telehealth to diagnose, consult, treat, or educate me.</li>
-                    <li>I understand that telehealth services may be provided via live video, audio, or other electronic means.</li>
-                    <li>I understand that telehealth offers convenient access to healthcare but has limitations. I acknowledge that certain conditions may require an in-person visit.</li>
-                    <li>I understand that reasonable efforts will be made to protect the privacy of my health information.</li>
-                    <li>I acknowledge that electronic communication carries potential risks, including technical failures or unauthorized access.</li>
-                    <li>I understand that I may refuse or discontinue telehealth services at any time without affecting my right to future care or treatment.</li>
-                    <li>I voluntarily consent to receive healthcare services via telehealth.</li>
-                </ul>
-            </div>
-        </div>
-
-        <div class="form-section">
-            <h3>Patient Acknowledgment</h3>
-            <p style="margin-bottom: 20px;">I have read and understand the information above. I had the opportunity to ask questions, and all my questions were answered to my satisfaction.</p>
-            
-            <div class="form-group">
-                <label>Signature</label>
-                <canvas id="signatureCanvas" class="signature-pad"></canvas>
-                <div class="signature-actions">
-                    <button type="button" class="btn-clear" id="clearSignature">Clear Signature</button>
-                </div>
-                <input type="hidden" name="signature" id="signatureInput">
-            </div>
-
-            <div class="form-group">
-                <label for="date">Date</label>
-                <input type="date" id="date" name="date" required>
-            </div>
-        </div>
-
-        <button type="submit" class="btn-submit">Submit Consent</button>
-    </form>
-</div>
-
-<script>
-    // Set today's date
-    document.getElementById('date').valueAsDate = new Date();
-
-    // Signature Pad Logic
-    const canvas = document.getElementById('signatureCanvas');
-    const ctx = canvas.getContext('2d');
-    let isDrawing = false;
-
-    // Resize canvas for better resolution
-    function resizeCanvas() {
-        const ratio = Math.max(window.devicePixelRatio || 1, 1);
-        canvas.width = canvas.offsetWidth * ratio;
-        canvas.height = canvas.offsetHeight * ratio;
-        ctx.scale(ratio, ratio);
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    function startDrawing(e) {
-        isDrawing = true;
-        draw(e);
-    }
-
-    function stopDrawing() {
-        isDrawing = false;
-        ctx.beginPath();
-    }
-
-    function draw(e) {
-        if (!isDrawing) return;
-
-        e.preventDefault();
-        
-        const rect = canvas.getBoundingClientRect();
-        const x = (e.clientX || e.touches[0].clientX) - rect.left;
-        const y = (e.clientY || e.touches[0].clientY) - rect.top;
-
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = '#000'; // Drawing in black for contrast on white bg
-
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-    }
-
-    canvas.addEventListener('mousedown', startDrawing);
-    canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDrawing);
-    canvas.addEventListener('mouseout', stopDrawing);
-
-    // Touch support
-    canvas.addEventListener('touchstart', startDrawing);
-    canvas.addEventListener('touchmove', draw);
-    canvas.addEventListener('touchend', stopDrawing);
-
-    document.getElementById('clearSignature').addEventListener('click', () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    });
-
-    document.getElementById('consentForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        // Save signature to hidden input
-        const signatureData = canvas.toDataURL();
-        document.getElementById('signatureInput').value = signatureData;
-
-        const formData = {
-            firstName: document.getElementById('firstName').value,
-            lastName: document.getElementById('lastName').value,
-            date: document.getElementById('date').value,
-            signature: signatureData
-        };
-
-        try {
-            const response = await fetch('/api/consents', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(formData)
-            });
-
-            if (response.ok) {
-                alert('Consent form submitted successfully!');
-                e.target.reset();
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            } else {
-                alert('Error submitting form. Please try again.');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('A network error occurred.');
-        }
-    });
-</script>
-
-</body>
-</html>
