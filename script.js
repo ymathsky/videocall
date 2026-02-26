@@ -2,8 +2,6 @@ const socket = io();
 const roomSelectionContainer = document.getElementById('room-selection-container');
 const roomInput = document.getElementById('room-input');
 const connectButton = document.getElementById('connect-button');
-const createButton = document.getElementById('create-button');
-const createPasswordInput = document.getElementById('create-password-input');
 const joinPasswordInput = document.getElementById('join-password-input');
 const waitingRoomOverlay = document.getElementById('waiting-room-overlay');
 const hostNotifications = document.getElementById('host-notifications');
@@ -14,26 +12,6 @@ roomInput.addEventListener("keypress", function(event) {
     event.preventDefault();
     connectButton.click();
   }
-});
-
-// Generate a random UUID for secure rooms
-function generateUUID() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
-}
-
-createButton.addEventListener('click', () => {
-    roomName = generateUUID();
-    const password = createPasswordInput.value;
-    
-    // Update URL without reloading
-    const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + encodeURIComponent(roomName);
-    window.history.pushState({path:newUrl},'',newUrl);
-
-    document.getElementById('room-display-name').innerText = "Room: " + roomName.substring(0, 8) + "...";
-    socket.emit('create-room', roomName, password);
 });
 
 connectButton.addEventListener('click', () => {
