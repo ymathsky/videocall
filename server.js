@@ -8,6 +8,8 @@ const { Server } = require("socket.io");
 const sqlite3 = require('sqlite3').verbose();
 const crypto = require('crypto');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+let twilioClient = null;
+try { twilioClient = require('twilio'); } catch(e) { console.warn('[SMS] twilio package not installed — SMS disabled'); }
 
 // ── Gemini AI setup ───────────────────────────────────────────────────────────
 let geminiModel = null;
@@ -408,7 +410,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', requireAdmin, (req, res) => {
-  const allowed = ['company_name', 'tagline', 'timezone', 'contact_email', 'contact_phone', 'company_logo', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from'];
+  const allowed = ['company_name', 'tagline', 'timezone', 'contact_email', 'contact_phone', 'company_logo', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'twilio_sid', 'twilio_token', 'twilio_from'];
   const updates = Object.entries(req.body).filter(([k]) => allowed.includes(k));
   if (!updates.length) return res.status(400).json({ error: 'No valid settings provided' });
   const tasks = updates.map(([k, v]) =>
@@ -420,6 +422,70 @@ app.post('/api/settings', requireAdmin, (req, res) => {
   Promise.all(tasks)
     .then(() => res.json({ message: 'Settings saved' }))
     .catch(e => res.status(500).json({ error: e.message }));
+});
+
+// ── Invite: send link via email or SMS ──────────────────────────────────────
+app.post('/api/invite/send', requireAdmin, async (req, res) => {
+  const { method, to, patientName, link, roomName } = req.body;
+  if (!method || !to || !link) return res.status(400).json({ error: 'method, to, and link are required' });
+
+  const settings = await new Promise((resolve, reject) => {
+    db.all(`SELECT key, value FROM settings`, [], (err, rows) => {
+      if (err) return reject(err);
+      const s = {}; rows.forEach(r => { s[r.key] = r.value; }); resolve(s);
+    });
+  });
+
+  const greeting = patientName ? `Hi ${patientName},` : 'Hello,';
+  const companyName = settings.company_name || 'TeleHealth Connect';
+
+  if (method === 'email') {
+    if (!settings.smtp_host || !settings.smtp_user || !settings.smtp_pass)
+      return res.status(400).json({ error: 'SMTP is not configured in Settings.' });
+    const port = parseInt(settings.smtp_port) || 587;
+    const transporter = nodemailer.createTransport({
+      host: settings.smtp_host, port, secure: port === 465,
+      auth: { user: settings.smtp_user, pass: settings.smtp_pass },
+    });
+    const fromAddr = settings.smtp_from || `${companyName} <${settings.smtp_user}>`;
+    await transporter.sendMail({
+      from: fromAddr, to,
+      subject: `Your consultation link — ${companyName}`,
+      html: `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f8fafc;padding:32px 0;margin:0;">
+<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08);">
+  <div style="background:#0d9488;padding:28px 32px;">
+    <h1 style="color:#fff;margin:0;font-size:1.3rem;">${companyName}</h1>
+    <p style="color:rgba(255,255,255,.8);margin:6px 0 0;font-size:14px;">Secure Telehealth Consultation</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="font-size:15px;color:#1e293b;margin:0 0 16px;">${greeting}</p>
+    <p style="font-size:14px;color:#475569;margin:0 0 24px;">Your provider has sent you a secure link for your upcoming telehealth consultation. Please complete the consent form before joining.</p>
+    <div style="text-align:center;margin-bottom:28px;">
+      <a href="${link}" style="display:inline-block;background:#0d9488;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:15px;font-weight:600;">Open Consent Form &amp; Join</a>
+    </div>
+    <p style="font-size:12px;color:#94a3b8;margin:0;">If the button doesn't work, copy and paste this link into your browser:<br><span style="color:#0d9488;word-break:break-all;">${link}</span></p>
+  </div>
+</div>
+</body></html>`,
+      text: `${greeting}\n\nYour provider has sent you a consultation link.\n\n${link}\n\n— ${companyName}`,
+    });
+    return res.json({ message: 'Email sent successfully' });
+  }
+
+  if (method === 'sms') {
+    if (!twilioClient) return res.status(400).json({ error: 'Twilio package not installed on this server.' });
+    if (!settings.twilio_sid || !settings.twilio_token || !settings.twilio_from)
+      return res.status(400).json({ error: 'Twilio is not configured in Settings.' });
+    const client = twilioClient(settings.twilio_sid, settings.twilio_token);
+    await client.messages.create({
+      from: settings.twilio_from,
+      to,
+      body: `${greeting} ${companyName} has sent you a secure consultation link. Open your consent form and join here: ${link}`,
+    });
+    return res.json({ message: 'SMS sent successfully' });
+  }
+
+  res.status(400).json({ error: 'Invalid method. Use \'email\' or \'sms\'.' });
 });
 
 // ── Users (staff / providers) CRUD ──────────────────────────────────────────

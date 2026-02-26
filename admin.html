@@ -320,8 +320,8 @@
                 <!-- Post-Visit Email (SMTP) -->
                 <div class="settings-grid" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
                     <div class="form-group full" style="margin-bottom:6px;">
-                        <label style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;"><i class="fas fa-envelope" style="color:var(--teal);"></i> Post-Visit Follow-up Email (SMTP)</label>
-                        <p style="font-size:12px;color:var(--text-2);margin:4px 0 0;">When configured, patients automatically receive a visit summary email after each consultation ends.</p>
+                        <label style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;"><i class="fas fa-envelope" style="color:var(--teal);"></i> Email (SMTP) — Invite &amp; Post-Visit</label>
+                        <p style="font-size:12px;color:var(--text-2);margin:4px 0 0;">Used to send consultation invite links to patients and automatic visit summary emails after each call.</p>
                     </div>
                     <div class="form-group">
                         <label for="cfg-smtp-host">SMTP Host</label>
@@ -343,6 +343,26 @@
                         <label for="cfg-smtp-from">From Address <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
                         <input type="text" id="cfg-smtp-from" placeholder='TeleHealth Connect &lt;you@gmail.com&gt;' />
                         <div style="font-size:11px;color:var(--text-3);margin-top:4px;"><i class="fas fa-info-circle" style="margin-right:3px;"></i>Gmail users: generate an App Password at myaccount.google.com &rarr; Security &rarr; App Passwords.</div>
+                    </div>
+                </div>
+
+                <!-- SMS (Twilio) -->
+                <div class="settings-grid" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+                    <div class="form-group full" style="margin-bottom:6px;">
+                        <label style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;"><i class="fas fa-comment-sms" style="color:var(--teal);"></i> SMS (Twilio) — Invite via Text Message</label>
+                        <p style="font-size:12px;color:var(--text-2);margin:4px 0 0;">Enter your <a href="https://console.twilio.com" target="_blank" style="color:var(--teal);">Twilio</a> credentials to send consultation invite links by SMS to patients.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-twilio-sid">Account SID</label>
+                        <input type="text" id="cfg-twilio-sid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-twilio-token">Auth Token</label>
+                        <input type="password" id="cfg-twilio-token" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="new-password" />
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-twilio-from">Twilio Phone Number <span style="color:var(--text-3);font-weight:400;">(E.164 format)</span></label>
+                        <input type="text" id="cfg-twilio-from" placeholder="+15550001234" />
                     </div>
                 </div>
 
@@ -811,10 +831,12 @@
         loginShell.style.display = 'flex';
     }
 
-    function showToast(msg) {
+    function showToast(msg, type) {
         const t = document.getElementById('toast');
-        t.textContent = msg; t.className = 'show';
-        setTimeout(() => { t.className = t.className.replace('show',''); }, 3000);
+        t.textContent = msg;
+        t.className = 'show';
+        t.style.background = type === 'error' ? 'rgba(239,68,68,.96)' : '';
+        setTimeout(() => { t.className = t.className.replace('show',''); t.style.background = ''; }, 3500);
     }
 
     function copyConsentLink() {
@@ -998,11 +1020,14 @@
                 document.getElementById('cfg-logo').value = s.company_logo;
                 applyLogo(s.company_logo);
             }
-            if (s.smtp_host) document.getElementById('cfg-smtp-host').value = s.smtp_host;
-            if (s.smtp_port) document.getElementById('cfg-smtp-port').value = s.smtp_port;
-            if (s.smtp_user) document.getElementById('cfg-smtp-user').value = s.smtp_user;
-            if (s.smtp_pass) document.getElementById('cfg-smtp-pass').value = s.smtp_pass;
-            if (s.smtp_from) document.getElementById('cfg-smtp-from').value = s.smtp_from;
+            if (s.smtp_host)    document.getElementById('cfg-smtp-host').value    = s.smtp_host;
+            if (s.smtp_port)    document.getElementById('cfg-smtp-port').value    = s.smtp_port;
+            if (s.smtp_user)    document.getElementById('cfg-smtp-user').value    = s.smtp_user;
+            if (s.smtp_pass)    document.getElementById('cfg-smtp-pass').value    = s.smtp_pass;
+            if (s.smtp_from)    document.getElementById('cfg-smtp-from').value    = s.smtp_from;
+            if (s.twilio_sid)   document.getElementById('cfg-twilio-sid').value   = s.twilio_sid;
+            if (s.twilio_token) document.getElementById('cfg-twilio-token').value = s.twilio_token;
+            if (s.twilio_from)  document.getElementById('cfg-twilio-from').value  = s.twilio_from;
         } catch(e) { console.error('loadSettings:', e); }
     }
 
@@ -1046,11 +1071,14 @@
                     contact_email:document.getElementById('cfg-email').value.trim(),
                     contact_phone:document.getElementById('cfg-phone').value.trim(),
                     company_logo: document.getElementById('cfg-logo').value.trim(),
-                    smtp_host:    document.getElementById('cfg-smtp-host').value.trim(),
-                    smtp_port:    document.getElementById('cfg-smtp-port').value.trim(),
-                    smtp_user:    document.getElementById('cfg-smtp-user').value.trim(),
-                    smtp_pass:    document.getElementById('cfg-smtp-pass').value.trim(),
-                    smtp_from:    document.getElementById('cfg-smtp-from').value.trim()
+                    smtp_host:     document.getElementById('cfg-smtp-host').value.trim(),
+                    smtp_port:     document.getElementById('cfg-smtp-port').value.trim(),
+                    smtp_user:     document.getElementById('cfg-smtp-user').value.trim(),
+                    smtp_pass:     document.getElementById('cfg-smtp-pass').value.trim(),
+                    smtp_from:     document.getElementById('cfg-smtp-from').value.trim(),
+                    twilio_sid:    document.getElementById('cfg-twilio-sid').value.trim(),
+                    twilio_token:  document.getElementById('cfg-twilio-token').value.trim(),
+                    twilio_from:   document.getElementById('cfg-twilio-from').value.trim()
                 })
             });
             if (!res.ok) throw new Error('Save failed');
@@ -1297,7 +1325,33 @@
     window.copyInviteLink = function() {
         updateInviteLink();
         navigator.clipboard.writeText(document.getElementById('invite-link-output').value)
-            .then(() => { showToast('Patient consent link copied!'); closeInviteModal(); });
+            .then(() => showToast('Link copied!'));
+    };
+
+    window.sendInvite = async function(method) {
+        updateInviteLink();
+        const name  = document.getElementById('invite-name').value.trim();
+        const email = document.getElementById('invite-email').value.trim();
+        const phone = document.getElementById('invite-phone').value.trim();
+        const link  = document.getElementById('invite-link-output').value;
+
+        if (method === 'email' && !email) { showToast('Enter a patient email address first.', 'error'); return; }
+        if (method === 'sms'   && !phone) { showToast('Enter a patient phone number first.', 'error'); return; }
+
+        const to = method === 'email' ? email : phone;
+        try {
+            const r = await fetch('/api/invite/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('adminToken') || '') },
+                body: JSON.stringify({ method, to, patientName: name, link, roomName: _inviteRoom })
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.error || 'Failed');
+            showToast(method === 'email' ? `Email sent to ${email}` : `SMS sent to ${phone}`);
+            closeInviteModal();
+        } catch(e) {
+            showToast('Error: ' + e.message, 'error');
+        }
     };
 
     document.getElementById('invite-name').addEventListener('input', updateInviteLink);
@@ -1311,25 +1365,39 @@
             <h3 style="margin:0;font-size:1.05rem;"><i class="fas fa-user-plus" style="color:var(--teal);margin-right:8px;"></i>Send Consent Form to Patient</h3>
             <button onclick="closeInviteModal()" style="background:none;border:none;color:var(--text-2);cursor:pointer;font-size:1.2rem;padding:4px;"><i class="fas fa-times"></i></button>
         </div>
-        <p style="font-size:13px;color:var(--text-2);margin:0 0 20px;">The link opens a pre-filled consent form. The patient only needs to sign and submit.</p>
-        <div class="form-group" style="margin-bottom:12px;">
-            <label>Patient Full Name <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
-            <input type="text" id="invite-name" placeholder="e.g. Jane Doe" />
-        </div>
-        <div class="form-group" style="margin-bottom:16px;">
-            <label>Patient Email <span style="color:var(--text-3);font-weight:400;">(optional — receives visit summary after call)</span></label>
-            <input type="email" id="invite-email" placeholder="jane@example.com" />
-        </div>
-        <div class="form-group" style="margin-bottom:18px;">
-            <label>Generated Link</label>
-            <div style="display:flex;gap:8px;">
-                <input type="text" id="invite-link-output" readonly style="flex:1;font-size:12px;color:var(--teal);background:rgba(20,184,166,.06);cursor:text;" onclick="this.select();" />
-                <button class="join-host-btn" onclick="navigator.clipboard.writeText(document.getElementById('invite-link-output').value).then(()=>showToast('Copied!'))" title="Copy"><i class="fas fa-copy"></i></button>
+        <p style="font-size:13px;color:var(--text-2);margin:0 0 20px;">Fill in the patient's details, then send the pre-filled consent form link via email, SMS, or copy it manually.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+            <div class="form-group" style="margin:0;">
+                <label>Patient Name <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
+                <input type="text" id="invite-name" placeholder="e.g. Jane Doe" />
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label>Patient Email</label>
+                <input type="email" id="invite-email" placeholder="jane@example.com" />
             </div>
         </div>
-        <button class="btn-primary" style="width:100%;justify-content:center;" onclick="copyInviteLink()">
-            <i class="fas fa-paper-plane"></i> Copy &amp; Share Link
-        </button>
+        <div class="form-group" style="margin-bottom:14px;">
+            <label>Patient Phone <span style="color:var(--text-3);font-weight:400;">(for SMS — E.164 format)</span></label>
+            <input type="tel" id="invite-phone" placeholder="e.g. +15550001234" />
+        </div>
+        <div class="form-group" style="margin-bottom:18px;">
+            <label>Consultation Link</label>
+            <div style="display:flex;gap:8px;">
+                <input type="text" id="invite-link-output" readonly style="flex:1;font-size:12px;color:var(--teal);background:rgba(20,184,166,.06);cursor:text;" onclick="this.select();" />
+                <button class="join-host-btn" onclick="navigator.clipboard.writeText(document.getElementById('invite-link-output').value).then(()=>showToast('Copied!'))" title="Copy link"><i class="fas fa-copy"></i></button>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <button class="btn-primary" style="justify-content:center;font-size:13px;padding:10px 8px;" onclick="sendInvite('email')">
+                <i class="fas fa-envelope"></i> Send Email
+            </button>
+            <button class="btn-primary" style="justify-content:center;font-size:13px;padding:10px 8px;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text);" onclick="sendInvite('sms')">
+                <i class="fas fa-comment-sms"></i> Send SMS
+            </button>
+            <button class="btn-primary" style="justify-content:center;font-size:13px;padding:10px 8px;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text);" onclick="copyInviteLink()">
+                <i class="fas fa-copy"></i> Copy Link
+            </button>
+        </div>
     </div>
 </div>
 
