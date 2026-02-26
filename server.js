@@ -3,6 +3,8 @@ const express = require('express');
 const nodemailer = require('nodemailer');
 const app = express();
 const http = require('http');
+const path = require('path');
+const fs   = require('fs');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 const sqlite3 = require('sqlite3').verbose();
@@ -38,6 +40,31 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 let adminPwHash = null; // overrides env var when password is changed via admin panel
 let adminPwSalt = null;
+
+// ── Patient portal — in-memory OTP & session stores ──────────────────────────
+const PATIENT_OTP_TTL_MS     = 1000 * 60 * 10;  // 10 min
+const PATIENT_SESSION_TTL_MS = 1000 * 60 * 60 * 4; // 4 h
+const patientOtpStore     = new Map(); // email → { otp, expires }
+const patientSessionStore = new Map(); // token → { email, expires }
+
+function cleanPatientStores() {
+  const now = Date.now();
+  for (const [k, v] of patientOtpStore.entries())     { if (v.expires < now) patientOtpStore.delete(k); }
+  for (const [k, v] of patientSessionStore.entries()) { if (v.expires < now) patientSessionStore.delete(k); }
+}
+setInterval(cleanPatientStores, 1000 * 60 * 15).unref();
+
+function requirePatient(req, res, next) {
+  const token = req.headers['x-patient-token'] || '';
+  const session = patientSessionStore.get(token);
+  if (!session || session.expires < Date.now()) return res.status(401).json({ error: 'Session expired — please log in again.' });
+  req.patientEmail = session.email;
+  next();
+}
+
+// ── Recordings directory ──────────────────────────────────────────────────────
+const recordingsDir = path.join(__dirname, 'recordings');
+if (!fs.existsSync(recordingsDir)) fs.mkdirSync(recordingsDir, { recursive: true });
 
 function verifyAdminPassword(password) {
   if (adminPwHash && adminPwSalt) {
@@ -232,6 +259,17 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
       medications TEXT DEFAULT '[]',
       instructions TEXT DEFAULT '',
       provider_name TEXT DEFAULT '',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // ── Recordings table ────────────────────────────────────────────────────
+    db.run(`CREATE TABLE IF NOT EXISTS recordings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      room_name TEXT DEFAULT '',
+      filename TEXT NOT NULL,
+      size_bytes INTEGER DEFAULT 0,
+      duration_seconds INTEGER DEFAULT 0,
+      uploaded_by TEXT DEFAULT 'host',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
   }
@@ -818,6 +856,180 @@ app.delete('/api/prescriptions/:id', requireAdmin, (req, res) => {
   });
 });
 
+// ── Recordings ───────────────────────────────────────────────────────────────
+app.post('/api/recordings/upload',
+  requireAdmin,
+  express.raw({ type: ['video/webm', 'video/mp4', 'application/octet-stream'], limit: '500mb' }),
+  (req, res) => {
+    const { room_name, duration } = req.query;
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0)
+      return res.status(400).json({ error: 'No recording data received.' });
+    const filename = `rec_${(room_name || 'unknown').replace(/[^a-zA-Z0-9_-]/g,'_')}_${Date.now()}.webm`;
+    const filePath = path.join(recordingsDir, filename);
+    fs.writeFile(filePath, req.body, err => {
+      if (err) return res.status(500).json({ error: err.message });
+      const sizeBytes = req.body.length;
+      const durSec    = parseInt(duration) || 0;
+      db.run(
+        `INSERT INTO recordings (room_name, filename, size_bytes, duration_seconds) VALUES (?,?,?,?)`,
+        [room_name || '', filename, sizeBytes, durSec],
+        function(e) {
+          if (e) return res.status(500).json({ error: e.message });
+          res.json({ id: this.lastID, filename, message: 'Recording saved to server' });
+        }
+      );
+    });
+  }
+);
+
+app.get('/api/recordings', requireAdmin, (req, res) => {
+  db.all(`SELECT * FROM recordings ORDER BY created_at DESC`, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows || []);
+  });
+});
+
+app.delete('/api/recordings/:id', requireAdmin, (req, res) => {
+  db.get(`SELECT filename FROM recordings WHERE id=?`, [req.params.id], (err, row) => {
+    if (err || !row) return res.status(404).json({ error: 'Recording not found' });
+    const filePath = path.join(recordingsDir, row.filename);
+    db.run(`DELETE FROM recordings WHERE id=?`, [req.params.id], () => {
+      fs.unlink(filePath, () => {}); // delete file, ignore errors
+      res.json({ message: 'Deleted' });
+    });
+  });
+});
+
+// Serve recording files (admin-only static handler)
+app.get('/recordings/:filename', requireAdmin, (req, res) => {
+  const safe = path.basename(req.params.filename);
+  res.sendFile(path.join(recordingsDir, safe), err => {
+    if (err) res.status(404).json({ error: 'File not found' });
+  });
+});
+
+// ── Test email ───────────────────────────────────────────────────────────────
+app.post('/api/settings/test-email', requireAdmin, async (req, res) => {
+  const settings = await new Promise((resolve, reject) =>
+    db.all(`SELECT key, value FROM settings`, [], (e, rows) => {
+      if (e) return reject(e);
+      const s = {}; rows.forEach(r => { s[r.key] = r.value; }); resolve(s);
+    })
+  );
+  if (!settings.smtp_host || !settings.smtp_user || !settings.smtp_pass)
+    return res.status(400).json({ error: 'SMTP is not fully configured. Set host, username and password first.' });
+  const port = parseInt(settings.smtp_port) || 587;
+  const transporter = nodemailer.createTransport({
+    host: settings.smtp_host, port, secure: port === 465,
+    auth: { user: settings.smtp_user, pass: settings.smtp_pass },
+    connectionTimeout: 8000,
+  });
+  const to = settings.contact_email || settings.smtp_user;
+  const company = settings.company_name || 'TeleHealth Connect';
+  const from = settings.smtp_from || `${company} <${settings.smtp_user}>`;
+  try {
+    await transporter.sendMail({
+      from, to,
+      subject: `✅ SMTP Test — ${company}`,
+      html: `<div style="font-family:Arial,sans-serif;padding:24px;background:#f8fafc;"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:10px;padding:28px;box-shadow:0 4px 20px rgba(0,0,0,.08);"><h2 style="color:#0d9488;margin:0 0 12px;">SMTP Test Successful!</h2><p style="color:#475569;font-size:14px;">Your SMTP configuration for <strong>${company}</strong> is working correctly.</p><p style="color:#64748b;font-size:12px;margin-top:20px;">Appointment reminders and invite emails are now active.</p></div></div>`,
+    });
+    res.json({ message: `Test email sent to ${to}` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Patient Portal ───────────────────────────────────────────────────────────
+app.get('/patient', (req, res) => res.sendFile(path.join(__dirname, 'patient.html')));
+
+app.post('/api/patient/request-otp', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required.' });
+  const norm = email.toLowerCase().trim();
+
+  // Check if patient exists in consents or appointments
+  const [inConsents, inAppts] = await Promise.all([
+    new Promise(r => db.get(`SELECT id FROM consents WHERE LOWER(TRIM(email))=? AND email!=''`, [norm], (e, row) => r(row))),
+    new Promise(r => db.get(`SELECT id FROM appointments WHERE LOWER(TRIM(patient_email))=?`, [norm], (e, row) => r(row))),
+  ]);
+  if (!inConsents && !inAppts)
+    return res.status(404).json({ error: 'No records found for this email address.' });
+
+  // Get SMTP settings
+  const settings = await new Promise((resolve, reject) =>
+    db.all(`SELECT key, value FROM settings`, [], (e, rows) => {
+      if (e) return reject(e);
+      const s = {}; rows.forEach(r => { s[r.key] = r.value; }); resolve(s);
+    })
+  );
+  if (!settings.smtp_host || !settings.smtp_user || !settings.smtp_pass)
+    return res.status(400).json({ error: 'Email is not configured on this server. Contact your provider.' });
+
+  // Generate 6-digit OTP
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  patientOtpStore.set(norm, { otp, expires: Date.now() + PATIENT_OTP_TTL_MS });
+
+  const company = settings.company_name || 'TeleHealth Connect';
+  const from    = settings.smtp_from || `${company} <${settings.smtp_user}>`;
+  const port    = parseInt(settings.smtp_port) || 587;
+  const transporter = nodemailer.createTransport({
+    host: settings.smtp_host, port, secure: port === 465,
+    auth: { user: settings.smtp_user, pass: settings.smtp_pass },
+  });
+
+  try {
+    await transporter.sendMail({
+      from, to: email,
+      subject: `Your ${company} login code: ${otp}`,
+      html: `<div style="font-family:Arial,sans-serif;background:#f8fafc;padding:32px 0;margin:0;"><div style="max-width:440px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08);"><div style="background:#0d9488;padding:24px 28px;"><h1 style="color:#fff;margin:0;font-size:1.15rem;">${company}</h1><p style="color:rgba(255,255,255,.85);margin:4px 0 0;font-size:13px;">Patient Portal</p></div><div style="padding:28px;"><p style="font-size:15px;color:#1e293b;margin:0 0 10px;">Hello,</p><p style="font-size:14px;color:#475569;margin:0 0 22px;">Use the code below to log in to your patient portal. It expires in <strong>10 minutes</strong>.</p><div style="background:#f0fdf4;border:2px dashed #0d9488;border-radius:10px;padding:20px;text-align:center;margin-bottom:22px;"><span style="font-size:36px;font-weight:800;letter-spacing:10px;color:#0d9488;">${otp}</span></div><p style="font-size:12px;color:#94a3b8;margin:0;">If you did not request this, please ignore this email.</p></div></div></div>`,
+    });
+    res.json({ message: 'OTP sent — check your email.' });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to send email: ' + e.message });
+  }
+});
+
+app.post('/api/patient/verify-otp', (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required.' });
+  const norm   = email.toLowerCase().trim();
+  const stored = patientOtpStore.get(norm);
+  if (!stored || stored.expires < Date.now())
+    return res.status(401).json({ error: 'Code expired. Please request a new one.' });
+  if (stored.otp !== String(otp).trim())
+    return res.status(401).json({ error: 'Invalid code. Please try again.' });
+  patientOtpStore.delete(norm);
+
+  const token = crypto.randomBytes(32).toString('hex');
+  patientSessionStore.set(token, { email: norm, expires: Date.now() + PATIENT_SESSION_TTL_MS });
+  res.json({ token, message: 'Logged in successfully.' });
+});
+
+app.get('/api/patient/dashboard', requirePatient, (req, res) => {
+  const email = req.patientEmail;
+  Promise.all([
+    new Promise(r => db.all(
+      `SELECT patient_name, scheduled_at, duration_minutes, status, notes, room_name FROM appointments WHERE LOWER(TRIM(patient_email))=? ORDER BY scheduled_at DESC`,
+      [email], (e, rows) => r(rows || [])
+    )),
+    new Promise(r => db.all(
+      `SELECT m.room_name, m.started_at, m.ended_at, m.duration_seconds, m.soap_notes FROM meetings m JOIN consents c ON LOWER(TRIM(c.room_name))=LOWER(TRIM(m.room_name)) WHERE LOWER(TRIM(c.email))=? AND c.email!='' ORDER BY m.created_at DESC LIMIT 20`,
+      [email], (e, rows) => r(rows || [])
+    )),
+    new Promise(r => db.all(
+      `SELECT patient_name, provider_name, medications, instructions, created_at FROM prescriptions WHERE LOWER(TRIM(patient_email))=? ORDER BY created_at DESC`,
+      [email], (e, rows) => r(rows || [])
+    )),
+    new Promise(r => db.get(
+      `SELECT first_name || ' ' || last_name AS name FROM consents WHERE LOWER(TRIM(email))=? ORDER BY created_at DESC LIMIT 1`,
+      [email], (e, row) => r(row || null)
+    )),
+  ]).then(([appointments, visits, prescriptions, profile]) => {
+    res.json({ email, name: profile ? profile.name : '', appointments, visits, prescriptions });
+  }).catch(e => res.status(500).json({ error: e.message }));
+});
+
+
 // ── Users (staff / providers) CRUD ──────────────────────────────────────────
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -1315,6 +1527,14 @@ io.on('connection', (socket) => {
   socket.on('lower-hand-for', (guestSocketId) => {
     const guestSocket = io.sockets.sockets.get(guestSocketId);
     if (guestSocket) guestSocket.emit('hand-lowered-confirm');
+  });
+
+  // ── Recording notifications (host → room) ────────────────────────────────
+  socket.on('recording-started', (roomName) => {
+    socket.broadcast.to(roomName).emit('recording-started');
+  });
+  socket.on('recording-stopped', (roomName) => {
+    socket.broadcast.to(roomName).emit('recording-stopped');
   });
 
   // ── End meeting (host only) ───────────────────────────────────────────────

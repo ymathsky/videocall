@@ -1163,6 +1163,11 @@ async function startRecording() {
             if (el) el.textContent = String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
         }, 1000);
 
+        // Notify remote participants that recording has started
+        if (typeof roomName !== 'undefined' && roomName) {
+            socket.emit('recording-started', roomName);
+        }
+
         showToast('Recording started');
     } catch(err) {
         console.error('Recording error:', err);
@@ -1183,20 +1188,113 @@ function stopRecording() {
         if (icon) { icon.classList.remove('fa-stop'); icon.classList.add('fa-circle'); icon.style.color = '#ef4444'; }
         recordButton.title = 'Record Session (Host Only)';
     }
+    // Notify remote participants that recording has stopped
+    if (typeof roomName !== 'undefined' && roomName) {
+        socket.emit('recording-stopped', roomName);
+    }
     showToast('Recording stopped — preparing download…');
 }
 
 function downloadRecording(mimeType) {
     const ext  = mimeType.includes('webm') ? 'webm' : 'mp4';
     const blob = new Blob(recChunks, { type: mimeType });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `session-${typeof roomName !== 'undefined' && roomName ? roomName.substring(0,8) : 'recording'}-${new Date().toISOString().replace(/[:.]/g,'-')}.${ext}`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    recChunks = [];
+    recChunks  = [];
+    const durSec = recStartTime ? Math.round((Date.now() - recStartTime) / 1000) : 0;
+
+    // Show save options modal
+    const existingModal = document.getElementById('rec-save-modal');
+    if (existingModal) existingModal.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'rec-save-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px;';
+    modal.innerHTML = `
+        <div style="background:#1c1c30;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:28px;max-width:400px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.6);">
+            <div style="font-size:1.8rem;color:#ef4444;text-align:center;margin-bottom:14px;"><i class="fas fa-film"></i></div>
+            <h3 style="text-align:center;margin:0 0 6px;font-size:1.05rem;">Save Recording</h3>
+            <p style="text-align:center;font-size:13px;color:#94a3b8;margin:0 0 22px;">Choose how to save this recording (${(blob.size / 1024 / 1024).toFixed(1)} MB)</p>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <button id="rec-download-btn" style="display:flex;align-items:center;gap:10px;padding:13px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:transparent;color:#e2e8f0;cursor:pointer;font-size:14px;font-weight:500;">
+                    <i class="fas fa-download" style="color:#14b8a6;"></i>
+                    <div style="text-align:left;"><div>Download locally</div><div style="font-size:11px;color:#64748b;">Save .webm file to your device</div></div>
+                </button>
+                <button id="rec-upload-btn" style="display:flex;align-items:center;gap:10px;padding:13px 16px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:transparent;color:#e2e8f0;cursor:pointer;font-size:14px;font-weight:500;">
+                    <i class="fas fa-cloud-upload-alt" style="color:#6366f1;"></i>
+                    <div style="text-align:left;"><div>Upload to server</div><div style="font-size:11px;color:#64748b;">Store in admin recordings archive</div></div>
+                </button>
+                <button id="rec-both-btn" style="display:flex;align-items:center;gap:10px;padding:13px 16px;border-radius:10px;border:1px solid rgba(20,184,166,.35);background:rgba(20,184,166,.08);color:#14b8a6;cursor:pointer;font-size:14px;font-weight:600;">
+                    <i class="fas fa-check-double"></i>
+                    <div style="text-align:left;"><div>Both</div><div style="font-size:11px;color:#64748b;">Download + upload to server</div></div>
+                </button>
+            </div>
+            <div id="rec-upload-progress" style="display:none;margin-top:14px;font-size:13px;color:#94a3b8;text-align:center;"></div>
+        </div>`;
+    document.body.appendChild(modal);
+
+    const rn = typeof roomName !== 'undefined' && roomName ? roomName : 'session';
+    const filename = `session-${rn.substring(0,8)}-${new Date().toISOString().replace(/[:.]/g,'-')}.${ext}`;
+
+    function doDownload() {
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+
+    async function doUpload() {
+        const prog = document.getElementById('rec-upload-progress');
+        if (prog) { prog.style.display = 'block'; prog.textContent = 'Uploading to server…'; }
+        try {
+            const qp = new URLSearchParams({ room_name: rn, duration: durSec });
+            const r  = await fetch(`/api/recordings/upload?${qp}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'video/webm' },
+                body: blob,
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.error || 'Upload failed');
+            showToast('Recording saved to server ✓');
+            if (prog) prog.textContent = 'Upload complete ✓';
+        } catch(e) {
+            showToast('Upload failed: ' + e.message);
+            if (prog) prog.textContent = 'Upload failed: ' + e.message;
+        }
+    }
+
+    document.getElementById('rec-download-btn').onclick = () => { doDownload(); modal.remove(); };
+    document.getElementById('rec-upload-btn').onclick = async () => {
+        document.getElementById('rec-upload-btn').disabled = true;
+        document.getElementById('rec-download-btn').disabled = true;
+        document.getElementById('rec-both-btn').disabled = true;
+        await doUpload();
+        setTimeout(() => modal.remove(), 1500);
+    };
+    document.getElementById('rec-both-btn').onclick = async () => {
+        document.getElementById('rec-upload-btn').disabled = true;
+        document.getElementById('rec-download-btn').disabled = true;
+        document.getElementById('rec-both-btn').disabled = true;
+        doDownload();
+        await doUpload();
+        setTimeout(() => modal.remove(), 1500);
+    };
 }
+
+// ── Remote recording notification banner ──────────────────────────────────────
+socket.on('recording-started', () => {
+    let banner = document.getElementById('remote-recording-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'remote-recording-banner';
+        banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#7f1d1d;border-bottom:1px solid #ef4444;color:#fca5a5;text-align:center;padding:9px 16px;font-size:13px;font-weight:600;z-index:9997;display:flex;align-items:center;justify-content:center;gap:8px;';
+        banner.innerHTML = '<i class="fas fa-circle" style="color:#ef4444;animation:recPulse 1.2s ease-in-out infinite;"></i> This session is being recorded by the host.';
+        document.body.appendChild(banner);
+    }
+    banner.style.display = 'flex';
+});
+socket.on('recording-stopped', () => {
+    const banner = document.getElementById('remote-recording-banner');
+    if (banner) banner.style.display = 'none';
+});
 
 /* ══════════════════════════════════════════════════════════════════════
    FEATURE: E-Prescription / Rx Panel (host-only)

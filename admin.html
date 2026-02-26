@@ -94,6 +94,9 @@
         </button>
 
         <div class="sidebar-section-label">Quick Links</div>
+        <button class="sidebar-btn" data-section="recordings-section">
+            <i class="fas fa-film"></i> Recordings
+        </button>
         <a href="/" class="sidebar-btn" style="text-decoration:none;display:flex;align-items:center;gap:10px;color:var(--text-2);">
             <i class="fas fa-video"></i> Open App
         </a>
@@ -383,9 +386,12 @@
                     </div>
                 </div>
 
-                <div class="settings-save-row">
+                <div class="settings-save-row" style="flex-wrap:wrap;gap:10px;">
                     <button id="save-settings-btn" class="btn-primary" style="gap:8px;">
                         <i class="fas fa-floppy-disk"></i> Save Settings
+                    </button>
+                    <button id="test-email-btn" class="btn-primary" onclick="testEmail()" style="gap:8px;background:transparent;border:1px solid var(--border);color:var(--text-2);">
+                        <i class="fas fa-paper-plane"></i> Send Test Email
                     </button>
                     <span class="save-hint" id="settings-hint"></span>
                 </div>
@@ -584,7 +590,28 @@
             </div>
         </div>
 
+        <!-- Recordings section -->
+        <div id="recordings-section" class="admin-section">
+            <div class="admin-topbar">
+                <div class="admin-topbar-title">
+                    <h2>Recordings</h2>
+                    <span>Session recordings uploaded to the server</span>
+                </div>
+            </div>
+            <div class="panel-card">
+                <div class="panel-card-header">
+                    <h3><i class="fas fa-film" style="color:var(--red,#ef4444);margin-right:8px;"></i>Saved Recordings</h3>
+                    <button onclick="loadRecordings()" class="secondary-btn" style="padding:7px 14px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);cursor:pointer;font-size:13px;gap:6px;display:inline-flex;align-items:center;"><i class="fas fa-rotate"></i> Refresh</button>
+                </div>
+                <div id="recordings-list" class="data-list"></div>
+            </div>
+        </div>
+
         <footer class="site-footer" style="margin-top:32px;">
+            <span class="footer-company dynamic-company-name">TeleHealth Connect</span>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-credit">Developed by <strong>Ymath</strong></span>
+        </footer>
             <span class="footer-company dynamic-company-name">TeleHealth Connect</span>
             <span class="footer-sep">&middot;</span>
             <span class="footer-credit">Developed by <strong>Ymath</strong></span>
@@ -828,6 +855,62 @@
         }
         if (sectionId === 'appointments-section')  loadAppointments();
         if (sectionId === 'patients-section')      loadPatients();
+        if (sectionId === 'recordings-section')    loadRecordings();
+    }
+
+    /* --- Test Email --- */
+    async function testEmail() {
+        const btn = document.getElementById('test-email-btn');
+        const hint = document.getElementById('settings-hint');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…';
+        try {
+            const res  = await fetch('/api/settings/test-email', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            const data = await res.json();
+            hint.style.color = res.ok ? 'var(--green)' : 'var(--red,#ef4444)';
+            hint.textContent = res.ok ? ('✓ ' + data.message) : ('✗ ' + data.error);
+        } catch(e) {
+            hint.style.color = 'var(--red,#ef4444)';
+            hint.textContent = '✗ Network error';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Test Email';
+        }
+    }
+
+    /* --- Recordings --- */
+    async function loadRecordings() {
+        const el = document.getElementById('recordings-list');
+        if (!el) return;
+        el.innerHTML = '<div class="muted" style="padding:12px 0;">Loading…</div>';
+        try {
+            const res  = await fetch('/api/recordings');
+            const rows = await res.json();
+            if (!rows.length) { el.innerHTML = '<div class="muted" style="padding:12px 0;">No recordings found. Upload recordings from the in-call recording panel.</div>'; return; }
+            el.innerHTML = rows.map(r => {
+                const date = new Date(r.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+                const size = r.size_bytes ? (r.size_bytes / 1024 / 1024).toFixed(1) + ' MB' : '—';
+                const dur  = r.duration_seconds ? (Math.floor(r.duration_seconds / 60) + 'm ' + (r.duration_seconds % 60) + 's') : '—';
+                return `<div class="data-item">
+                    <div>
+                        <div class="item-title"><i class="fas fa-film" style="color:var(--red,#ef4444);margin-right:6px;"></i>${esc(r.filename)}</div>
+                        <div class="item-meta">${esc(r.room_name || '—')} &nbsp;·&nbsp; ${dur} &nbsp;·&nbsp; ${size} &nbsp;·&nbsp; ${date}</div>
+                    </div>
+                    <div style="display:flex;gap:6px;flex-shrink:0;">
+                        <a href="/recordings/${encodeURIComponent(r.filename)}" target="_blank" class="join-host-btn" style="background:var(--teal);color:#fff;text-decoration:none;padding:6px 12px;border-radius:var(--r-sm);font-size:12px;display:inline-flex;align-items:center;gap:5px;"><i class="fas fa-download"></i> Download</a>
+                        <button onclick="deleteRecording(${r.id})" style="padding:6px 12px;border-radius:var(--r-sm);border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08);color:var(--red,#ef4444);font-size:12px;cursor:pointer;"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>`;
+            }).join('');
+        } catch(e) {
+            el.innerHTML = `<div class="muted" style="padding:12px 0;color:var(--red,#ef4444);">Error: ${e.message}</div>`;
+        }
+    }
+
+    async function deleteRecording(id) {
+        if (!confirm('Delete this recording? This cannot be undone.')) return;
+        await fetch('/api/recordings/' + id, { method: 'DELETE' });
+        loadRecordings();
     }
 
     /* â”€â”€â”€ Auth â”€â”€â”€ */
@@ -1818,6 +1901,8 @@ function renderApptList(list) {
             <div class="appt-card-footer">
                 <span class="appt-status-badge" style="color:${statusColor};background:${statusColor}22;">${a.status}</span>
                 <span style="font-size:12px;color:var(--text-2);">${a.duration_minutes} min</span>
+                ${a.reminder_sent_24h ? '<span title="24h reminder sent" style="font-size:10px;color:var(--teal);display:inline-flex;align-items:center;gap:3px;"><i class="fas fa-bell"></i>24h</span>' : ''}
+                ${a.reminder_sent_1h  ? '<span title="1h reminder sent"  style="font-size:10px;color:var(--green);display:inline-flex;align-items:center;gap:3px;"><i class="fas fa-bell"></i>1h</span>'  : ''}
                 <div style="display:flex;gap:6px;margin-left:auto;">
                     ${hostLink ? `<a href="${hostLink}" target="_blank" class="secondary-btn" style="padding:4px 10px;border-radius:var(--r-sm);border:1px solid var(--teal);background:rgba(20,184,166,.1);cursor:pointer;font-size:12px;color:var(--teal);text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Join as host"><i class="fas fa-video"></i> Join</a>` : ''}
                     ${hostLink ? `<button onclick="showApptLinks('${esc(a.room_name)}')" class="secondary-btn" style="padding:4px 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px;" title="Copy meeting links"><i class="fas fa-link"></i></button>` : ''}

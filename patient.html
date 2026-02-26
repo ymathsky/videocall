@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Patient Portal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <style>
+        :root {
+            --bg:           #0f0f1a;
+            --bg-card:      #161626;
+            --bg-elevated:  #1c1c30;
+            --bg-surface:   #13131f;
+            --border:       rgba(255,255,255,.08);
+            --border-hover: rgba(255,255,255,.18);
+            --text:         #e2e8f0;
+            --text-2:       #94a3b8;
+            --text-3:       #4b5563;
+            --teal:         #14b8a6;
+            --teal-glow:    rgba(20,184,166,.15);
+            --green:        #22c55e;
+            --amber:        #f59e0b;
+            --red:          #ef4444;
+            --r-md:         8px;
+            --r-lg:         12px;
+            --r-xl:         16px;
+            --s-md:         0 4px 20px rgba(0,0,0,.3);
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Auth screens ─────────────────────────────────────────── */
+        .auth-wrap {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .auth-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--r-xl);
+            padding: 36px 32px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: var(--s-md);
+        }
+        .auth-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+        .auth-logo-icon {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, var(--teal), #0284c7);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 1.1rem;
+        }
+        .auth-logo strong { font-size: 1rem; }
+        .auth-logo span   { font-size: 11px; color: var(--text-2); display: block; }
+        .auth-title   { font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; }
+        .auth-sub     { font-size: 13px; color: var(--text-2); margin-bottom: 24px; }
+        .form-label   { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2); font-weight: 600; display: block; margin-bottom: 6px; }
+        .form-input   { width: 100%; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--r-md); color: var(--text); padding: 11px 14px; font-size: 14px; outline: none; transition: border-color .2s; }
+        .form-input:focus { border-color: var(--teal); }
+        .form-group   { margin-bottom: 16px; }
+        .btn-primary  { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; background: var(--teal); color: #fff; border: none; border-radius: var(--r-md); font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity .2s; }
+        .btn-primary:hover { opacity: .9; }
+        .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+        .btn-ghost  { background: transparent; border: 1px solid var(--border); color: var(--text-2); border-radius: var(--r-md); padding: 10px 16px; font-size: 13px; cursor: pointer; transition: background .15s; }
+        .btn-ghost:hover { background: rgba(255,255,255,.05); color: var(--text); }
+        .error-msg  { font-size: 13px; color: var(--red); min-height: 18px; margin-top: 8px; }
+        .otp-hint   { font-size: 12px; color: var(--text-2); margin-top: 8px; }
+        .back-link  { text-align: center; margin-top: 16px; font-size: 13px; color: var(--text-2); }
+        .back-link button { background: none; border: none; color: var(--teal); cursor: pointer; font-size: 13px; text-decoration: underline; }
+
+        /* ── OTP code input ─────────────────────────────────────── */
+        .otp-input {
+            text-align: center;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 10px;
+            padding: 14px;
+        }
+
+        /* ── Dashboard ──────────────────────────────────────────── */
+        #dashboard-view { display: none; }
+        .dash-nav {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .dash-brand { display: flex; align-items: center; gap: 10px; }
+        .dash-brand-icon {
+            width: 34px; height: 34px;
+            background: linear-gradient(135deg, var(--teal), #0284c7);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-size: 0.85rem;
+        }
+        .dash-brand strong { font-size: 0.9rem; }
+        .dash-brand span   { font-size: 11px; color: var(--text-2); display: block; }
+        .dash-user  { font-size: 13px; color: var(--text-2); display: flex; align-items: center; gap: 10px; }
+        .dash-main  { padding: 28px 24px; max-width: 1100px; margin: 0 auto; }
+        .dash-welcome  { margin-bottom: 24px; }
+        .dash-welcome h1 { font-size: 1.4rem; }
+        .dash-welcome p  { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+
+        .section-title  { font-size: 0.95rem; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+        .section-icon   { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; flex-shrink: 0; }
+        .icon-teal  { background: var(--teal-glow);        color: var(--teal); }
+        .icon-amber { background: rgba(245,158,11,.14);    color: var(--amber); }
+        .icon-green { background: rgba(34,197,94,.12);     color: var(--green); }
+
+        .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 720px) { .dash-grid { grid-template-columns: 1fr; } }
+
+        .dash-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--r-lg);
+            padding: 20px;
+        }
+        .dash-panel.full { grid-column: 1 / -1; }
+
+        /* Stat row */
+        .stat-strip { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+        .stat-chip  {
+            flex: 1; min-width: 130px;
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-lg);
+            padding: 16px 18px; display: flex; align-items: center; gap: 12px;
+        }
+        .stat-chip-icon { width: 38px; height: 38px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+        .stat-chip strong { display: block; font-size: 1.5rem; font-weight: 700; }
+        .stat-chip span   { font-size: 11px; color: var(--text-2); }
+
+        /* Cards */
+        .appt-card {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: var(--r-md);
+            padding: 14px 16px;
+            margin-bottom: 8px;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .appt-date-badge {
+            min-width: 52px; text-align: center;
+            background: var(--teal-glow);
+            border-radius: var(--r-md);
+            padding: 8px 4px;
+            flex-shrink: 0;
+        }
+        .appt-date-badge .month { font-size: 10px; text-transform: uppercase; color: var(--teal); font-weight: 700; }
+        .appt-date-badge .day   { font-size: 1.5rem; font-weight: 800; color: var(--teal); line-height: 1; }
+        .appt-info { flex: 1; }
+        .appt-info .title  { font-weight: 600; font-size: 14px; }
+        .appt-info .meta   { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+        .appt-info .note   { font-size: 12px; color: var(--text-2); margin-top: 5px; border-top: 1px solid var(--border); padding-top: 5px; }
+        .status-pill {
+            font-size: 10px; font-weight: 700; padding: 2px 8px;
+            border-radius: 100px; text-transform: capitalize; white-space: nowrap; flex-shrink: 0;
+        }
+        .pill-scheduled { background: rgba(20,184,166,.15);  color: var(--teal); }
+        .pill-completed { background: rgba(34,197,94,.12);   color: var(--green); }
+        .pill-cancelled { background: rgba(239,68,68,.12);   color: var(--red); }
+        .pill-no-show   { background: rgba(245,158,11,.14);  color: var(--amber); }
+
+        .visit-row {
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            border-radius: var(--r-md); padding: 12px 14px; margin-bottom: 7px;
+        }
+        .visit-row .when   { font-size: 12px; color: var(--teal); font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+        .visit-row .notes  { font-size: 12px; color: var(--text-2); white-space: pre-wrap; }
+
+        .rx-card {
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            border-radius: var(--r-md); padding: 12px 14px; margin-bottom: 8px;
+        }
+        .rx-card .rx-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .rx-card .rx-title  { font-weight: 600; font-size: 13px; }
+        .rx-card .rx-date   { font-size: 11px; color: var(--text-2); }
+        .rx-card .rx-meds   { font-size: 12px; color: var(--text-2); }
+        .rx-med-row { display: flex; gap: 6px; flex-wrap: wrap; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+        .rx-med-row:last-child { border-bottom: none; }
+        .rx-drug  { font-weight: 600; color: var(--text); }
+        .rx-dose  { color: var(--teal); }
+
+        .empty-state { text-align: center; padding: 28px 16px; color: var(--text-2); font-size: 13px; }
+        .empty-state i { font-size: 2rem; display: block; margin-bottom: 8px; opacity: .35; }
+
+        /* Join button */
+        .join-appt-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: var(--teal); color: #fff; border: none;
+            border-radius: var(--r-md); padding: 7px 14px;
+            font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none;
+            margin-top: 6px;
+        }
+        .join-appt-btn:hover { opacity: .9; }
+
+        /* Scrollable panels */
+        .panel-scroll { max-height: 400px; overflow-y: auto; }
+        .panel-scroll::-webkit-scrollbar { width: 4px; }
+        .panel-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 4px; }
+
+        /* Toast */
+        .pt-toast {
+            position: fixed; top: 16px; right: 16px; z-index: 9999;
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            border-radius: var(--r-md); padding: 10px 18px; font-size: 13px;
+            color: var(--text); box-shadow: var(--s-md);
+            opacity: 0; transition: opacity .3s;
+            pointer-events: none;
+        }
+        .pt-toast.show { opacity: 1; }
+
+        /* Loader */
+        .loader { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<!-- ═══ AUTH VIEW ════════════════════════════════════════════════ -->
+<div id="auth-view">
+
+    <!-- Step 1: Enter email -->
+    <div id="step-email" class="auth-wrap">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <div class="auth-logo-icon"><i class="fas fa-heartbeat"></i></div>
+                <div>
+                    <strong id="portal-company-name">TeleHealth Connect</strong>
+                    <span>Patient Portal</span>
+                </div>
+            </div>
+            <h2 class="auth-title">Welcome back</h2>
+            <p class="auth-sub">Enter your email to receive a one-time login code.</p>
+
+            <div class="form-group">
+                <label class="form-label" for="pt-email">Email Address</label>
+                <input class="form-input" type="email" id="pt-email" placeholder="patient@example.com" />
+            </div>
+            <button class="btn-primary" id="send-otp-btn" onclick="requestOtp()">
+                <i class="fas fa-paper-plane"></i> Send Login Code
+            </button>
+            <div class="error-msg" id="email-error"></div>
+        </div>
+    </div>
+
+    <!-- Step 2: Enter OTP -->
+    <div id="step-otp" class="auth-wrap" style="display:none;">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <div class="auth-logo-icon"><i class="fas fa-heartbeat"></i></div>
+                <div>
+                    <strong id="portal-company-name-2">TeleHealth Connect</strong>
+                    <span>Patient Portal</span>
+                </div>
+            </div>
+            <h2 class="auth-title">Check your email</h2>
+            <p class="auth-sub" id="otp-sent-msg">We sent a 6-digit code to your email.</p>
+
+            <div class="form-group">
+                <label class="form-label" for="pt-otp">6-Digit Login Code</label>
+                <input class="form-input otp-input" type="text" id="pt-otp" maxlength="6" placeholder="000000"
+                    inputmode="numeric" pattern="[0-9]*" onkeyup="if(this.value.length===6)verifyOtp()" />
+                <p class="otp-hint"><i class="fas fa-clock" style="margin-right:4px;"></i>Code expires in 10 minutes.</p>
+            </div>
+            <button class="btn-primary" id="verify-otp-btn" onclick="verifyOtp()">
+                <i class="fas fa-check"></i> Verify & Log In
+            </button>
+            <div class="error-msg" id="otp-error"></div>
+            <div class="back-link">
+                Didn't receive it? <button onclick="resendOtp()">Resend code</button> &nbsp;&middot;&nbsp;
+                <button onclick="backToEmail()">Change email</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══ DASHBOARD VIEW ══════════════════════════════════════════ -->
+<div id="dashboard-view">
+    <nav class="dash-nav">
+        <div class="dash-brand">
+            <div class="dash-brand-icon"><i class="fas fa-heartbeat"></i></div>
+            <div>
+                <strong id="dash-company-name">TeleHealth Connect</strong>
+                <span>Patient Portal</span>
+            </div>
+        </div>
+        <div class="dash-user">
+            <i class="fas fa-user-circle" style="font-size:1.1rem;"></i>
+            <span id="dash-email-label"></span>
+            <button class="btn-ghost" onclick="logout()" style="padding:7px 12px;">
+                <i class="fas fa-arrow-right-from-bracket"></i> Log out
+            </button>
+        </div>
+    </nav>
+
+    <div class="dash-main">
+        <div class="dash-welcome">
+            <h1>Hello, <span id="dash-patient-name">there</span> 👋</h1>
+            <p>Here's a summary of your health journey.</p>
+        </div>
+
+        <!-- Stats strip -->
+        <div class="stat-strip" id="stat-strip">
+            <div class="stat-chip">
+                <div class="stat-chip-icon icon-teal"><i class="fas fa-calendar-check"></i></div>
+                <div><strong id="stat-appts">0</strong><span>Appointments</span></div>
+            </div>
+            <div class="stat-chip">
+                <div class="stat-chip-icon icon-green"><i class="fas fa-video"></i></div>
+                <div><strong id="stat-visits">0</strong><span>Past Visits</span></div>
+            </div>
+            <div class="stat-chip">
+                <div class="stat-chip-icon icon-amber"><i class="fas fa-pills"></i></div>
+                <div><strong id="stat-rx">0</strong><span>Prescriptions</span></div>
+            </div>
+        </div>
+
+        <!-- Main grid -->
+        <div class="dash-grid">
+
+            <!-- Upcoming Appointments -->
+            <div class="dash-panel">
+                <div class="section-title">
+                    <div class="section-icon icon-teal"><i class="fas fa-calendar-days"></i></div>
+                    Appointments
+                </div>
+                <div class="panel-scroll" id="appts-list">
+                    <div class="empty-state"><i class="fas fa-calendar"></i>No appointments found.</div>
+                </div>
+            </div>
+
+            <!-- Past Visits -->
+            <div class="dash-panel">
+                <div class="section-title">
+                    <div class="section-icon icon-green"><i class="fas fa-video"></i></div>
+                    Visit History
+                </div>
+                <div class="panel-scroll" id="visits-list">
+                    <div class="empty-state"><i class="fas fa-clock-rotate-left"></i>No past visits found.</div>
+                </div>
+            </div>
+
+            <!-- Prescriptions (full width) -->
+            <div class="dash-panel full">
+                <div class="section-title">
+                    <div class="section-icon icon-amber"><i class="fas fa-pills"></i></div>
+                    Prescriptions
+                </div>
+                <div id="rx-list">
+                    <div class="empty-state"><i class="fas fa-prescription-bottle-medical"></i>No prescriptions on file.</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="pt-toast" id="pt-toast"></div>
+
+<script>
+let patientToken = sessionStorage.getItem('pt_token') || '';
+let patientEmail = sessionStorage.getItem('pt_email') || '';
+
+function showToast(msg) {
+    const t = document.getElementById('pt-toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Load company name ─────────────────────────────────────────────
+fetch('/api/settings').then(r => r.json()).then(s => {
+    const name = s.company_name || 'TeleHealth Connect';
+    document.querySelectorAll('#portal-company-name, #portal-company-name-2, #dash-company-name')
+        .forEach(el => el.textContent = name);
+    document.title = name + ' — Patient Portal';
+}).catch(() => {});
+
+// ── Auto-login if token exists ─────────────────────────────────────
+if (patientToken) {
+    fetch('/api/patient/dashboard', { headers: { 'x-patient-token': patientToken } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) showDashboard(data); })
+        .catch(() => {});
+}
+
+// ── OTP flow ───────────────────────────────────────────────────────
+async function requestOtp() {
+    const email = document.getElementById('pt-email').value.trim();
+    const err   = document.getElementById('email-error');
+    err.textContent = '';
+    if (!email) { err.textContent = 'Please enter your email address.'; return; }
+    const btn = document.getElementById('send-otp-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loader"></span>';
+    try {
+        const res = await fetch('/api/patient/request-otp', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+        const data = await res.json();
+        if (!res.ok) { err.textContent = data.error; return; }
+        patientEmail = email;
+        sessionStorage.setItem('pt_email', email);
+        document.getElementById('otp-sent-msg').textContent = `We sent a 6-digit code to ${email}.`;
+        document.getElementById('step-email').style.display = 'none';
+        document.getElementById('step-otp').style.display   = 'flex';
+        setTimeout(() => document.getElementById('pt-otp').focus(), 100);
+    } catch (e) {
+        err.textContent = 'Network error — please try again.';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Login Code';
+    }
+}
+
+async function verifyOtp() {
+    const otp = document.getElementById('pt-otp').value.trim();
+    const err  = document.getElementById('otp-error');
+    err.textContent = '';
+    if (otp.length !== 6) { err.textContent = 'Please enter the 6-digit code.'; return; }
+    const btn = document.getElementById('verify-otp-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loader"></span>';
+    try {
+        const res = await fetch('/api/patient/verify-otp', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: patientEmail, otp }),
+        });
+        const data = await res.json();
+        if (!res.ok) { err.textContent = data.error; return; }
+        patientToken = data.token;
+        sessionStorage.setItem('pt_token', patientToken);
+        await loadDashboard();
+    } catch (e) {
+        err.textContent = 'Network error — please try again.';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check"></i> Verify & Log In';
+    }
+}
+
+async function resendOtp() {
+    document.getElementById('pt-otp').value = '';
+    document.getElementById('otp-error').textContent = '';
+    await requestOtpForEmail(patientEmail);
+    showToast('A new code has been sent.');
+}
+
+async function requestOtpForEmail(email) {
+    await fetch('/api/patient/request-otp', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+    });
+}
+
+function backToEmail() {
+    document.getElementById('step-otp').style.display   = 'none';
+    document.getElementById('step-email').style.display = 'flex';
+    document.getElementById('otp-error').textContent = '';
+    document.getElementById('pt-otp').value = '';
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────
+async function loadDashboard() {
+    const res  = await fetch('/api/patient/dashboard', { headers: { 'x-patient-token': patientToken } });
+    const data = await res.json();
+    if (!res.ok) { showToast(data.error); return; }
+    showDashboard(data);
+}
+
+function showDashboard(data) {
+    document.getElementById('auth-view').style.display      = 'none';
+    document.getElementById('dashboard-view').style.display = 'block';
+    document.getElementById('dash-email-label').textContent = data.email;
+    if (data.name) {
+        const firstName = data.name.split(' ')[0];
+        document.getElementById('dash-patient-name').textContent = firstName;
+    }
+    document.getElementById('stat-appts').textContent  = data.appointments.length;
+    document.getElementById('stat-visits').textContent = data.visits.length;
+    document.getElementById('stat-rx').textContent     = data.prescriptions.length;
+
+    renderAppointments(data.appointments);
+    renderVisits(data.visits);
+    renderPrescriptions(data.prescriptions);
+}
+
+function renderAppointments(appts) {
+    const el = document.getElementById('appts-list');
+    if (!appts.length) { el.innerHTML = '<div class="empty-state"><i class="fas fa-calendar"></i>No appointments found.</div>'; return; }
+    el.innerHTML = appts.map(a => {
+        const d = new Date(a.scheduled_at);
+        const month = d.toLocaleString('default', { month: 'short' }).toUpperCase();
+        const day   = d.getDate();
+        const time  = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const pill  = `<span class="status-pill pill-${a.status}">${a.status}</span>`;
+        const upcoming = new Date(a.scheduled_at) > new Date() && a.status === 'scheduled';
+        const joinBtn  = upcoming && a.room_name
+            ? `<a class="join-appt-btn" href="/consent?room=${encodeURIComponent(a.room_name)}&name=${encodeURIComponent(a.patient_name || '')}&email=${encodeURIComponent(patientEmail)}" target="_blank"><i class="fas fa-video"></i> Join Session</a>`
+            : '';
+        return `<div class="appt-card">
+            <div class="appt-date-badge"><div class="month">${month}</div><div class="day">${day}</div></div>
+            <div class="appt-info">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+                    <div class="title">${escHtml(a.patient_name || 'Consultation')}</div>${pill}
+                </div>
+                <div class="meta"><i class="fas fa-clock" style="margin-right:4px;color:var(--teal);"></i>${time} &nbsp;&middot;&nbsp; ${a.duration_minutes || 30} min</div>
+                ${a.notes ? `<div class="note">${escHtml(a.notes)}</div>` : ''}
+                ${joinBtn}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderVisits(visits) {
+    const el = document.getElementById('visits-list');
+    if (!visits.length) { el.innerHTML = '<div class="empty-state"><i class="fas fa-clock-rotate-left"></i>No past visits on record.</div>'; return; }
+    el.innerHTML = visits.map(v => {
+        const when = v.started_at ? new Date(v.started_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'Unknown date';
+        const dur  = v.duration_seconds ? fmtDur(v.duration_seconds) : '';
+        const notes = v.soap_notes ? escHtml(v.soap_notes) : '<em style="color:var(--text-3)">No notes recorded.</em>';
+        return `<div class="visit-row">
+            <div class="when"><i class="fas fa-calendar-alt"></i> ${when} ${dur ? `&nbsp;&middot;&nbsp; <i class="fas fa-clock"></i> ${dur}` : ''}</div>
+            <div class="notes">${notes}</div>
+        </div>`;
+    }).join('');
+}
+
+function renderPrescriptions(rxs) {
+    const el = document.getElementById('rx-list');
+    if (!rxs.length) { el.innerHTML = '<div class="empty-state"><i class="fas fa-prescription-bottle-medical"></i>No prescriptions on file.</div>'; return; }
+    el.innerHTML = rxs.map(rx => {
+        let meds = [];
+        try { meds = JSON.parse(rx.medications || '[]'); } catch(e) {}
+        const medsHtml = meds.length ? meds.map(m =>
+            `<div class="rx-med-row"><span class="rx-drug">${escHtml(m.drug||'')}</span><span class="rx-dose">${escHtml(m.dose||'')}</span><span style="color:var(--text-2)">${escHtml(m.frequency||'')} ${m.duration ? `&middot; ${escHtml(m.duration)}` : ''}</span></div>`
+        ).join('') : '<span style="color:var(--text-3);font-size:12px;">No medications listed.</span>';
+        const date = new Date(rx.created_at).toLocaleDateString('en-US', { dateStyle: 'medium' });
+        return `<div class="rx-card">
+            <div class="rx-header">
+                <div class="rx-title"><i class="fas fa-prescription" style="color:var(--amber);margin-right:6px;"></i>${escHtml(rx.provider_name || 'Provider')}</div>
+                <div class="rx-date">${date}</div>
+            </div>
+            <div class="rx-meds">${medsHtml}</div>
+            ${rx.instructions ? `<div style="font-size:12px;color:var(--text-2);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);"><i class="fas fa-notes-medical" style="margin-right:4px;color:var(--teal);"></i>${escHtml(rx.instructions)}</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function logout() {
+    sessionStorage.removeItem('pt_token');
+    sessionStorage.removeItem('pt_email');
+    patientToken = '';
+    document.getElementById('dashboard-view').style.display = 'none';
+    document.getElementById('auth-view').style.display      = 'block';
+    document.getElementById('step-otp').style.display       = 'none';
+    document.getElementById('step-email').style.display     = 'flex';
+    document.getElementById('pt-email').value = '';
+    document.getElementById('pt-otp').value   = '';
+}
+
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDur(secs) {
+    const m = Math.floor(secs / 60);
+    return m >= 60 ? `${Math.floor(m/60)}h ${m%60}m` : `${m} min`;
+}
+
+// ── Enter key support ─────────────────────────────────────────────
+document.getElementById('pt-email').addEventListener('keyup', e => { if (e.key === 'Enter') requestOtp(); });
+</script>
+</body>
+</html>
