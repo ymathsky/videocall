@@ -60,6 +60,7 @@ let qualityInterval = null;
 let handRaised      = false;
 let stream = localStream; // keep reference to current stream (camera or screen)
 const peers = {}; // Connection store: socketId -> RTCPeerConnection
+const peerNames = {}; // Name cache: socketId -> display name
 const peerVideos = {}; // DOM elements: socketId -> videoElement
 let isAudioMuted = false;
 let isVideoOff = false;
@@ -752,6 +753,7 @@ socket.on('user-disconnected', (socketId) => {
         peerVideos[socketId].remove();
         delete peerVideos[socketId];
     }
+    delete peerNames[socketId];
     updateVideoGridLayout();
 });
 
@@ -870,7 +872,7 @@ function createVideoElement(socketId, stream) {
 
     const nameTag = document.createElement('div');
     nameTag.classList.add('name-tag');
-    nameTag.innerText = 'Connecting…';
+    nameTag.innerText = peerNames[socketId] || 'Connecting…';
 
     wrapper.appendChild(video);
     wrapper.appendChild(nameTag);
@@ -895,6 +897,7 @@ function updateVideoGridLayout() {
    FEATURE: Participant name display
    ═══════════════════════════════════════════════════════════════════════ */
 socket.on('user-name', (socketId, name) => {
+    peerNames[socketId] = name; // cache for tiles not yet created
     const wrapper = peerVideos[socketId];
     if (wrapper) {
         const tag = wrapper.querySelector('.name-tag');
