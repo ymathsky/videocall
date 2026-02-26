@@ -700,7 +700,7 @@ app.post('/api/appointments', requireAdmin, async (req, res) => {
             } catch(e) { console.error('[APPT INVITE]', e.message); }
           }
 
-          res.json({ id: apptId, room_name, invite_sent: inviteSent, message: 'Appointment created' });
+          res.json({ id: apptId, room_name, token, invite_sent: inviteSent, message: 'Appointment created' });
         }
       );
     }

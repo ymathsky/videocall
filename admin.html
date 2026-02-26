@@ -1649,6 +1649,7 @@ function renderApptList(list) {
         const timeStr = dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
         const dateStr = dt.toLocaleDateString([], {month:'short', day:'numeric'});
         const statusColor = { scheduled:'var(--teal)', cancelled:'var(--red,#ef4444)', completed:'var(--green)', no_show:'#f59e0b' }[a.status] || 'var(--text-2)';
+        const hostLink = a.room_name ? `${location.origin}/?room=${encodeURIComponent(a.room_name)}` : null;
         return `<div class="appt-card">
             <div class="appt-card-time"><i class="fas fa-clock"></i> ${dateStr} ${timeStr}</div>
             <div class="appt-card-name">${esc(a.patient_name)}</div>
@@ -1658,6 +1659,8 @@ function renderApptList(list) {
                 <span class="appt-status-badge" style="color:${statusColor};background:${statusColor}22;">${a.status}</span>
                 <span style="font-size:12px;color:var(--text-2);">${a.duration_minutes} min</span>
                 <div style="display:flex;gap:6px;margin-left:auto;">
+                    ${hostLink ? `<a href="${hostLink}" target="_blank" class="secondary-btn" style="padding:4px 10px;border-radius:var(--r-sm);border:1px solid var(--teal);background:rgba(20,184,166,.1);cursor:pointer;font-size:12px;color:var(--teal);text-decoration:none;display:inline-flex;align-items:center;gap:4px;" title="Join as host"><i class="fas fa-video"></i> Join</a>` : ''}
+                    ${hostLink ? `<button onclick="showApptLinks('${esc(a.room_name)}')" class="secondary-btn" style="padding:4px 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px;" title="Copy meeting links"><i class="fas fa-link"></i></button>` : ''}
                     <button onclick="editAppt(${a.id})" class="secondary-btn" style="padding:4px 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px;"><i class="fas fa-pen"></i></button>
                     <button onclick="deleteAppt(${a.id})" class="secondary-btn" style="padding:4px 10px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg);cursor:pointer;font-size:12px;color:var(--red,#ef4444);"><i class="fas fa-trash"></i></button>
                 </div>
@@ -1712,9 +1715,13 @@ async function saveAppt() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed');
-        showToast(id ? 'Appointment updated' : 'Appointment created');
         closeApptModal();
         loadAppointments();
+        if (!id && data.room_name) {
+            showMeetingLinks(data, body.patient_name, body.patient_email);
+        } else {
+            showToast(id ? 'Appointment updated' : 'Appointment created');
+        }
     } catch(e) {
         document.getElementById('appt-modal-error').textContent = e.message;
     }
@@ -1826,6 +1833,51 @@ function renderPtTab(data) {
 }
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* Show meeting links after appointment creation */
+function showMeetingLinks(data, patientName, patientEmail) {
+    const hostLink    = `${location.origin}/?room=${encodeURIComponent(data.room_name)}`;
+    const patientLink = `${location.origin}/consent?room=${encodeURIComponent(data.room_name)}&name=${encodeURIComponent(patientName||'')}&email=${encodeURIComponent(patientEmail||'')}${data.token ? '&token=' + data.token : ''}`;
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    modal.innerHTML = `
+        <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px;width:100%;max-width:500px;box-shadow:0 24px 60px rgba(0,0,0,.6);">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+                <span style="font-size:1.5rem;color:var(--teal);"><i class="fas fa-circle-check"></i></span>
+                <h3 style="margin:0;font-size:1.05rem;">Appointment &amp; Meeting Created</h3>
+            </div>
+            <p style="font-size:13px;color:var(--text-2);margin:0 0 18px;">The meeting room is ready. Share the patient link or join as host when the time comes.</p>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--teal);">Your Host Link</label>
+                <div style="display:flex;gap:8px;">
+                    <input type="text" value="${hostLink}" readonly style="flex:1;font-size:12px;color:var(--teal);background:rgba(20,184,166,.06);" onclick="this.select();" />
+                    <button onclick="navigator.clipboard.writeText('${hostLink}').then(()=>showToast('Host link copied!'))" style="padding:6px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg);color:var(--text-2);cursor:pointer;"><i class="fas fa-copy"></i></button>
+                </div>
+            </div>
+            ${patientEmail || data.token ? `
+            <div class="form-group" style="margin-bottom:20px;">
+                <label style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#a78bfa;">Patient Consent Link</label>
+                <div style="display:flex;gap:8px;">
+                    <input type="text" value="${patientLink}" readonly style="flex:1;font-size:12px;color:#a78bfa;background:rgba(167,139,250,.06);" onclick="this.select();" />
+                    <button onclick="navigator.clipboard.writeText('${patientLink}').then(()=>showToast('Patient link copied!'))" style="padding:6px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg);color:var(--text-2);cursor:pointer;"><i class="fas fa-copy"></i></button>
+                </div>
+            </div>` : ''}
+            ${data.invite_sent ? '<p style="font-size:12px;color:var(--teal);margin:0 0 18px;"><i class="fas fa-envelope-circle-check"></i> Invite email sent to patient.</p>' : ''}
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <a href="${hostLink}" target="_blank" class="btn-primary" style="padding:9px 18px;gap:6px;text-decoration:none;"><i class="fas fa-video"></i> Join Now</a>
+                <button onclick="this.closest('[style*=fixed]').remove()" style="padding:9px 18px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);cursor:pointer;">Close</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+}
+
+/* Show links popup for an existing appointment card */
+function showApptLinks(roomName) {
+    const appt = allAppts.find(a => a.room_name === roomName);
+    const pName  = appt ? appt.patient_name  : '';
+    const pEmail = appt ? appt.patient_email : '';
+    showMeetingLinks({ room_name: roomName, token: '', invite_sent: false }, pName, pEmail);
+}
 </script>
 
 </body>
