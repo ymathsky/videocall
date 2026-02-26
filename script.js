@@ -889,6 +889,41 @@ function updateVideoGridLayout() {
     grid.className = grid.className.replace(/\bcount-\d+\b/g, '').trim();
     const count = grid.querySelectorAll('.video-wrapper').length;
     grid.classList.add('count-' + Math.max(1, Math.min(count, 5)));
+    // Enable PiP drag on mobile for the self-video tile
+    if (window.innerWidth <= 768 && count === 2) {
+        const selfWrapper = grid.querySelector('.video-wrapper:first-child');
+        if (selfWrapper && !selfWrapper._pipDrag) makePipDraggable(selfWrapper);
+    }
+}
+
+function makePipDraggable(el) {
+    el._pipDrag = true;
+    let startX, startY, origRight, origTop;
+    el.addEventListener('touchstart', (e) => {
+        const t = e.touches[0];
+        const rect = el.getBoundingClientRect();
+        startX = t.clientX;
+        startY = t.clientY;
+        origRight = window.innerWidth - rect.right;
+        origTop   = rect.top;
+        el.style.cursor = 'grabbing';
+        el.style.transition = 'none';
+    }, { passive: true });
+    el.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const t = e.touches[0];
+        const dx = t.clientX - startX;
+        const dy = t.clientY - startY;
+        const newRight = Math.max(8, Math.min(window.innerWidth - el.offsetWidth - 8, origRight - dx));
+        const newTop   = Math.max(8, Math.min(window.innerHeight - el.offsetHeight - 88, origTop + dy));
+        el.style.right = newRight + 'px';
+        el.style.top   = newTop  + 'px';
+        el.style.left  = 'auto';
+    }, { passive: false });
+    el.addEventListener('touchend', () => {
+        el.style.cursor = 'grab';
+        el.style.transition = '';
+    });
 }
 
 // End of WebRTC logic
