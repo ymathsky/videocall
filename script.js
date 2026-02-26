@@ -68,6 +68,8 @@ let isChatOpen = false;
 
 // STUN + TURN servers for NAT traversal (TURN required for mobile/5G symmetric NAT)
 const iceServers = {
+  bundlePolicy: 'max-bundle',   // single transport for all tracks — fewer connections to maintain
+  iceCandidatePoolSize: 5,      // pre-gather candidates so reconnects are faster
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
@@ -771,6 +773,54 @@ function createPeerConnection(socketId, isInitiator) {
         }
     };
 
+    // Apply encoding quality settings once connected
+    pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'connected') {
+            pc.getSenders().forEach(sender => {
+                if (!sender.track || sender.track.kind !== 'video') return;
+                const params = sender.getParameters();
+                if (!params.encodings || !params.encodings.length) return;
+                params.encodings.forEach(enc => {
+                    enc.maxBitrate           = 1_200_000;         // 1.2 Mbps ceiling
+                    enc.degradationPreference = 'maintain-framerate'; // reduce resolution, not frames
+                    enc.networkPriority       = 'high';
+                });
+                sender.setParameters(params).catch(() => {});
+            });
+            hideReconnecting(socketId);
+        }
+    };
+
+    // Auto-reconnect when ICE drops
+    let _reconnectTimer = null;
+    pc.oniceconnectionstatechange = () => {
+        const state = pc.iceConnectionState;
+        if (state === 'disconnected') {
+            showReconnecting(socketId);
+            _reconnectTimer = setTimeout(() => {
+                if (!['connected', 'completed'].includes(pc.iceConnectionState) && isInitiator) {
+                    pc.createOffer({ iceRestart: true })
+                      .then(offer => { pc.setLocalDescription(offer); socket.emit('offer', offer, roomName, socketId); })
+                      .catch(() => {});
+                }
+            }, 2500);
+        } else if (state === 'failed') {
+            clearTimeout(_reconnectTimer);
+            showReconnecting(socketId);
+            if (isInitiator) {
+                pc.createOffer({ iceRestart: true })
+                  .then(offer => { pc.setLocalDescription(offer); socket.emit('offer', offer, roomName, socketId); })
+                  .catch(() => {});
+            }
+        } else if (state === 'connected' || state === 'completed') {
+            clearTimeout(_reconnectTimer);
+            hideReconnecting(socketId);
+        } else if (state === 'closed') {
+            clearTimeout(_reconnectTimer);
+            hideReconnecting(socketId);
+        }
+    };
+
     if (localStream) {
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
     }
@@ -783,6 +833,28 @@ function createPeerConnection(socketId, isInitiator) {
             })
             .catch(console.error);
     }
+}
+
+function showReconnecting(socketId) {
+    const wrapper = peerVideos[socketId];
+    if (!wrapper) return;
+    let overlay = wrapper.querySelector('.reconnecting-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'reconnecting-overlay';
+        overlay.style.cssText = 'position:absolute;inset:0;background:rgba(0,0,0,.65);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:inherit;z-index:9;gap:8px;';
+        overlay.innerHTML = '<div style="width:26px;height:26px;border:3px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;"></div><span style="color:#fff;font-size:12px;font-weight:600;letter-spacing:.3px;">Reconnecting…</span>';
+        wrapper.style.position = 'relative';
+        wrapper.appendChild(overlay);
+    }
+    overlay.style.display = 'flex';
+}
+
+function hideReconnecting(socketId) {
+    const wrapper = peerVideos[socketId];
+    if (!wrapper) return;
+    const overlay = wrapper.querySelector('.reconnecting-overlay');
+    if (overlay) overlay.style.display = 'none';
 }
 
 function createVideoElement(socketId, stream) {
@@ -879,9 +951,25 @@ function stopMeetingTimer() {
 /* ═══════════════════════════════════════════════════════════════════════
    FEATURE: Connection quality indicator
    ═══════════════════════════════════════════════════════════════════════ */
+function applyAdaptiveBitrate(level) {
+    const maxBitrate = level === 'good' ? 1_200_000 : level === 'fair' ? 500_000 : 150_000;
+    Object.values(peers).forEach(pc => {
+        pc.getSenders().forEach(sender => {
+            if (!sender.track || sender.track.kind !== 'video') return;
+            try {
+                const params = sender.getParameters();
+                if (!params.encodings || !params.encodings.length) return;
+                params.encodings.forEach(enc => { enc.maxBitrate = maxBitrate; });
+                sender.setParameters(params).catch(() => {});
+            } catch(e) {}
+        });
+    });
+}
+
 function startQualityMonitor() {
     const el = document.getElementById('quality-indicator');
     if (el) el.style.display = 'inline-flex';
+    let prevLost = 0, prevReceived = 0;
     qualityInterval = setInterval(async () => {
         const pcList = Object.values(peers);
         if (!pcList.length) return;
@@ -894,21 +982,28 @@ function startQualityMonitor() {
                     received += r.packetsReceived || 0;
                 }
             });
-            const total   = lost + received;
-            const loss    = total > 0 ? lost / total : 0;
-            const icon    = el.querySelector('i');
+            // Delta-based loss is more accurate than cumulative
+            const dLost = Math.max(0, lost - prevLost);
+            const dRecv = Math.max(0, received - prevReceived);
+            prevLost = lost; prevReceived = received;
+            const total = dLost + dRecv;
+            const loss  = total > 0 ? dLost / total : 0;
+            const icon  = el ? el.querySelector('i') : null;
             if (loss < 0.02) {
-                el.style.color = '#22c55e'; el.title = 'Good connection';
-                icon.className = 'fas fa-signal';
-            } else if (loss < 0.06) {
-                el.style.color = '#f59e0b'; el.title = 'Fair connection';
-                icon.className = 'fas fa-signal';
+                if (el) { el.style.color = '#22c55e'; el.title = 'Good connection'; }
+                if (icon) icon.className = 'fas fa-signal';
+                applyAdaptiveBitrate('good');
+            } else if (loss < 0.07) {
+                if (el) { el.style.color = '#f59e0b'; el.title = 'Fair connection'; }
+                if (icon) icon.className = 'fas fa-signal';
+                applyAdaptiveBitrate('fair');
             } else {
-                el.style.color = '#ef4444'; el.title = 'Poor connection';
-                icon.className = 'fas fa-wifi';
+                if (el) { el.style.color = '#ef4444'; el.title = 'Poor connection — quality reduced to maintain call'; }
+                if (icon) icon.className = 'fas fa-wifi';
+                applyAdaptiveBitrate('poor');
             }
         } catch(e) {}
-    }, 5000);
+    }, 4000);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
