@@ -620,7 +620,29 @@ socket.on('queue-position', ({ position, total }) => {
     if (msg) msg.innerHTML = `You're in the waiting room.<br>You are <strong>#${position}</strong> of ${total} patient${total !== 1 ? 's' : ''} waiting.`;
 });
 
+function playJoinChime() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const notes = [523.25, 659.25, 783.99]; // C5 E5 G5
+        notes.forEach((freq, i) => {
+            const osc  = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            const start = ctx.currentTime + i * 0.18;
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.4, start + 0.04);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.45);
+            osc.start(start);
+            osc.stop(start + 0.45);
+        });
+    } catch(e) { /* AudioContext not available */ }
+}
+
 socket.on('guest-waiting', (data) => {
+    playJoinChime();
     const notification = document.createElement('div');
     notification.className = 'notification-card';
     notification.id = `notif-${data.socketId}`;
