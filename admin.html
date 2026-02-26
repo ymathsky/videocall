@@ -42,8 +42,16 @@
 <!-- â”€â”€â”€ DASHBOARD â”€â”€â”€ -->
 <div id="admin-shell" class="admin-shell">
 
+    <!-- Mobile sidebar overlay -->
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+    <!-- Mobile hamburger toggle -->
+    <button id="sidebar-toggle" class="sidebar-hamburger" aria-label="Toggle navigation menu">
+        <i class="fas fa-bars"></i>
+    </button>
+
     <!-- Sidebar -->
-    <aside class="admin-sidebar">
+    <aside class="admin-sidebar" id="admin-sidebar">
         <div class="sidebar-logo">
             <div class="sidebar-logo-icon" id="sidebar-logo-icon"><i class="fas fa-heartbeat"></i></div>
             <div class="sidebar-logo-text">
@@ -660,7 +668,7 @@
                 <input type="hidden" id="am-datetime" />
                 <div style="margin-top:12px;">
                     <label style="font-size:11px;color:var(--text-2);margin-bottom:5px;display:block;">Duration</label>
-                    <div style="display:flex;gap:8px;">
+                    <div style="display:flex;gap:8px;" class="dur-btn-row">
                         <button type="button" class="appt-dur-btn active" data-val="15" onclick="selectDuration(this)">15 min</button>
                         <button type="button" class="appt-dur-btn" data-val="30" onclick="selectDuration(this)">30 min</button>
                         <button type="button" class="appt-dur-btn" data-val="45" onclick="selectDuration(this)">45 min</button>
@@ -2056,6 +2064,35 @@ function showApptLinks(roomName) {
     const pEmail = appt ? appt.patient_email : '';
     showMeetingLinks({ room_name: roomName, token: '', invite_sent: false }, pName, pEmail);
 }
+
+/* ── Mobile sidebar hamburger toggle ── */
+(function() {
+    const toggle  = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('admin-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (!toggle || !sidebar || !overlay) return;
+
+    function openSidebar() {
+        sidebar.classList.add('open');
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    toggle.addEventListener('click', openSidebar);
+    overlay.addEventListener('click', closeSidebar);
+
+    /* Close sidebar when a nav item is clicked on mobile */
+    sidebar.querySelectorAll('.sidebar-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (window.innerWidth <= 680) closeSidebar();
+        });
+    });
+})();
 </script>
 
 </body>
