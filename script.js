@@ -298,9 +298,7 @@ shareScreenButton.addEventListener('click', () => {
 chatToggleButton.addEventListener('click', () => {
     isChatOpen = !isChatOpen;
     chatContainer.classList.toggle('visible');
-    if (isChatOpen) {
-        chatInput.focus();
-    }
+    if (isChatOpen) { chatInput.focus(); clearChatBadge(); }
 });
 
 chatCloseBtn.addEventListener('click', () => {
@@ -317,7 +315,7 @@ function sendMessage() {
             timestamp: new Date().toISOString()
         };
         addMessageToChat(msgData, true);
-        socket.emit('chat-message', message, roomName);
+        socket.emit('chat-message', message, roomName, displayName || 'You');
         chatInput.value = '';
     }
 }
@@ -335,12 +333,21 @@ socket.on('chat-message', (data) => {
         ? { message: data, senderName: 'Peer', timestamp: new Date().toISOString() }
         : data;
     addMessageToChat(normalized, false);
-    // Auto-open chat if closed
+    // Show unread badge if chat panel is closed; auto-open if it was already open
     if (!isChatOpen) {
-        isChatOpen = true;
-        chatContainer.classList.add('visible');
+        incrementChatBadge();
     }
 });
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/\n/g, '<br>');
+}
 
 function addMessageToChat(data, isMyMessage) {
     const msgDiv = document.createElement('div');
@@ -350,12 +357,31 @@ function addMessageToChat(data, isMyMessage) {
     const time = data.timestamp
         ? new Date(data.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
         : new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    msgDiv.innerHTML = `
-        <span class="message-sender">${name} &bull; ${time}</span>
-        ${data.message}
-    `;
+    msgDiv.innerHTML = `<span class="message-sender">${escapeHtml(name)} &bull; ${time}</span>${escapeHtml(data.message)}`;
     chatMessages.appendChild(msgDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+let chatUnread = 0;
+function incrementChatBadge() {
+    chatUnread++;
+    let badge = document.getElementById('chat-unread-badge');
+    if (!badge) return;
+    badge.textContent = chatUnread > 9 ? '9+' : chatUnread;
+    badge.style.display = 'flex';
+}
+function clearChatBadge() {
+    chatUnread = 0;
+    const badge = document.getElementById('chat-unread-badge');
+    if (badge) badge.style.display = 'none';
+}
+
+function loadChatHistory() {
+    socket.emit('get-chat-history', roomName, (messages) => {
+        if (!messages || !messages.length) return;
+        chatMessages.innerHTML = '';
+        messages.forEach(msg => addMessageToChat(msg, false));
+    });
 }
 
 leaveButton.addEventListener('click', () => {
@@ -537,6 +563,7 @@ socket.on('created', () => {
         videoChatContainer.style = 'display:block';
         startCallSession();
         updateVideoGridLayout();
+        loadChatHistory();
     });
 });
 
@@ -656,6 +683,7 @@ socket.on('admitted', () => {
         videoChatContainer.style = 'display:block';
         startCallSession();
         updateVideoGridLayout();
+        loadChatHistory();
         socket.emit('ready', roomName);
         if (displayName) socket.emit('user-name', roomName, displayName);
     });

@@ -1466,8 +1466,10 @@ io.on('connection', (socket) => {
     socket.to(targetId).emit('answer', answer, socket.id);
   });
 
-  socket.on('chat-message', (message, roomName) => {
-    const senderName = socket.participantName || 'Unknown';
+  socket.on('chat-message', (message, roomName, senderNameFallback) => {
+    const senderName = socket.participantName
+      || (typeof senderNameFallback === 'string' && senderNameFallback.trim())
+      || 'Unknown';
     const timestamp  = new Date().toISOString();
     // Persist to database
     db.run(
@@ -1481,6 +1483,19 @@ io.on('connection', (socket) => {
       if (!activeRooms[roomName].chatLog) activeRooms[roomName].chatLog = [];
       activeRooms[roomName].chatLog.push(`${senderName}: ${message}`);
     }
+  });
+
+  // ── Chat history ───────────────────
+  socket.on('get-chat-history', (roomName, callback) => {
+    if (typeof callback !== 'function') return;
+    db.all(
+      `SELECT sender_name, message, sent_at FROM chat_messages WHERE room_name = ? ORDER BY sent_at ASC LIMIT 100`,
+      [roomName],
+      (err, rows) => {
+        if (err) return callback([]);
+        callback((rows || []).map(r => ({ senderName: r.sender_name, message: r.message, timestamp: r.sent_at })));
+      }
+    );
   });
 
   // ── Name sharing ───────────────────
