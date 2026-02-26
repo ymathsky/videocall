@@ -566,39 +566,118 @@
 
 <!-- Appointment Create/Edit Modal -->
 <div id="appt-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2000;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-xl);padding:28px 28px 22px;width:100%;max-width:520px;box-shadow:0 24px 60px rgba(0,0,0,.6);max-height:90vh;overflow-y:auto;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-            <h3 id="appt-modal-title" style="margin:0;font-size:1.1rem;">New Appointment</h3>
-            <button onclick="closeApptModal()" style="background:none;border:none;color:var(--text-2);cursor:pointer;font-size:1.2rem;padding:4px;"><i class="fas fa-times"></i></button>
-        </div>
-        <input type="hidden" id="appt-modal-id" value="" />
-        <div class="form-group"><label>Patient Name <span style="color:#ef4444;">*</span></label><input type="text" id="am-name" placeholder="John Doe" /></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div class="form-group"><label>Patient Email</label><input type="email" id="am-email" placeholder="patient@email.com" /></div>
-            <div class="form-group"><label>Patient Phone</label><input type="tel" id="am-phone" placeholder="+1 555 000 0000" /></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div class="form-group"><label>Date &amp; Time <span style="color:#ef4444;">*</span></label><input type="datetime-local" id="am-datetime" /></div>
-            <div class="form-group"><label>Duration</label>
-                <select id="am-duration" class="form-select">
-                    <option value="15">15 min</option>
-                    <option value="30" selected>30 min</option>
-                    <option value="45">45 min</option>
-                    <option value="60">60 min</option>
-                </select>
+    <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-xl);padding:0;width:100%;max-width:520px;box-shadow:0 24px 60px rgba(0,0,0,.6);max-height:90vh;overflow-y:auto;">
+
+        <!-- Modal header strip -->
+        <div style="background:linear-gradient(135deg,rgba(20,184,166,.15) 0%,rgba(99,102,241,.1) 100%);border-bottom:1px solid var(--border);padding:20px 24px;display:flex;justify-content:space-between;align-items:center;border-radius:var(--r-xl) var(--r-xl) 0 0;">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:36px;height:36px;border-radius:10px;background:rgba(20,184,166,.2);display:flex;align-items:center;justify-content:center;color:var(--teal);font-size:1rem;"><i class="fas fa-calendar-plus"></i></div>
+                <div>
+                    <h3 id="appt-modal-title" style="margin:0;font-size:1.05rem;font-weight:700;">New Appointment</h3>
+                    <p style="margin:2px 0 0;font-size:11px;color:var(--text-2);">Fill in the patient details below</p>
+                </div>
             </div>
+            <button onclick="closeApptModal()" style="background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text-2);cursor:pointer;font-size:1rem;padding:6px 9px;border-radius:8px;line-height:1;transition:background .15s;" onmouseover="this.style.background='rgba(255,255,255,.12)'" onmouseout="this.style.background='rgba(255,255,255,.06)'"><i class="fas fa-times"></i></button>
         </div>
-        <div class="form-group"><label>Notes</label><textarea id="am-notes" rows="3" placeholder="Reason for visit, special instructions..."></textarea></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;">
-            <input type="checkbox" id="am-send-invite" checked style="width:16px;height:16px;" />
-            <label for="am-send-invite" style="margin:0;cursor:pointer;">Send invite email to patient (requires email in Settings)</label>
-        </div>
-        <div id="appt-modal-error" style="color:#ef4444;font-size:13px;margin-bottom:10px;min-height:18px;"></div>
-        <div style="display:flex;gap:10px;justify-content:flex-end;">
-            <button onclick="closeApptModal()" class="secondary-btn" style="padding:9px 18px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);">Cancel</button>
-            <button onclick="saveAppt()" class="btn-primary" style="padding:9px 18px;gap:6px;">
-                <i class="fas fa-floppy-disk"></i> <span id="appt-modal-save-label">Save Appointment</span>
-            </button>
+
+        <!-- Modal body -->
+        <div style="padding:22px 24px 20px;">
+            <input type="hidden" id="appt-modal-id" value="" />
+
+            <!-- Patient info -->
+            <div style="margin-bottom:16px;">
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2);font-weight:600;">Patient Name <span style="color:#ef4444;">*</span></label>
+                    <div style="position:relative;">
+                        <i class="fas fa-user" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-2);font-size:13px;pointer-events:none;"></i>
+                        <input type="text" id="am-name" placeholder="John Doe" style="padding-left:34px;" />
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div class="form-group" style="margin:0;">
+                        <label style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2);font-weight:600;">Email</label>
+                        <div style="position:relative;">
+                            <i class="fas fa-envelope" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-2);font-size:13px;pointer-events:none;"></i>
+                            <input type="email" id="am-email" placeholder="patient@email.com" style="padding-left:34px;" />
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2);font-weight:600;">Phone</label>
+                        <div style="position:relative;">
+                            <i class="fas fa-phone" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-2);font-size:13px;pointer-events:none;"></i>
+                            <input type="tel" id="am-phone" placeholder="+1 555 000 0000" style="padding-left:34px;" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Divider -->
+            <div style="height:1px;background:var(--border);margin:4px 0 16px;"></div>
+
+            <!-- Date / Time / Duration row -->
+            <div style="margin-bottom:16px;">
+                <label style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2);font-weight:600;display:block;margin-bottom:10px;"><i class="fas fa-clock" style="margin-right:5px;color:var(--teal);"></i>Schedule</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                        <label style="font-size:11px;color:var(--text-2);margin-bottom:5px;display:block;">Date</label>
+                        <div style="position:relative;">
+                            <i class="fas fa-calendar" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--teal);font-size:13px;pointer-events:none;z-index:1;"></i>
+                            <input type="date" id="am-date" style="padding-left:34px;width:100%;box-sizing:border-box;" />
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--text-2);margin-bottom:5px;display:block;">Time</label>
+                        <div style="position:relative;">
+                            <i class="fas fa-clock" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--teal);font-size:13px;pointer-events:none;z-index:1;"></i>
+                            <input type="time" id="am-time" style="padding-left:34px;width:100%;box-sizing:border-box;" />
+                        </div>
+                    </div>
+                </div>
+                <!-- Hidden combined datetime field for form submission -->
+                <input type="hidden" id="am-datetime" />
+                <div style="margin-top:12px;">
+                    <label style="font-size:11px;color:var(--text-2);margin-bottom:5px;display:block;">Duration</label>
+                    <div style="display:flex;gap:8px;">
+                        <button type="button" class="appt-dur-btn active" data-val="15" onclick="selectDuration(this)">15 min</button>
+                        <button type="button" class="appt-dur-btn" data-val="30" onclick="selectDuration(this)">30 min</button>
+                        <button type="button" class="appt-dur-btn" data-val="45" onclick="selectDuration(this)">45 min</button>
+                        <button type="button" class="appt-dur-btn" data-val="60" onclick="selectDuration(this)">1 hour</button>
+                    </div>
+                    <input type="hidden" id="am-duration" value="15" />
+                </div>
+            </div>
+
+            <!-- Divider -->
+            <div style="height:1px;background:var(--border);margin:4px 0 16px;"></div>
+
+            <!-- Notes -->
+            <div style="margin-bottom:16px;">
+                <label style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2);font-weight:600;display:block;margin-bottom:10px;"><i class="fas fa-notes-medical" style="margin-right:5px;color:#a78bfa;"></i>Visit Notes</label>
+                <div style="position:relative;">
+                    <textarea id="am-notes" rows="3" placeholder="Reason for visit, chief complaint, special instructions or reminders for the provider…" style="width:100%;box-sizing:border-box;padding:12px 14px;line-height:1.6;resize:vertical;min-height:88px;background:rgba(167,139,250,.04);border:1px solid rgba(167,139,250,.25);border-radius:var(--r-md);color:var(--text);font-family:inherit;font-size:13px;transition:border-color .2s;" onfocus="this.style.borderColor='rgba(167,139,250,.7)'" onblur="this.style.borderColor='rgba(167,139,250,.25)'"></textarea>
+                </div>
+            </div>
+
+            <!-- Invite toggle -->
+            <label style="display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:12px 14px;background:rgba(20,184,166,.05);border:1px solid rgba(20,184,166,.2);border-radius:var(--r-md);cursor:pointer;">
+                <div style="position:relative;width:36px;height:20px;flex-shrink:0;">
+                    <input type="checkbox" id="am-send-invite" checked style="opacity:0;position:absolute;inset:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:2;" onchange="updateInviteToggle(this)" />
+                    <div id="am-invite-track" style="position:absolute;inset:0;border-radius:100px;background:var(--teal);transition:background .2s;"></div>
+                    <div id="am-invite-thumb" style="position:absolute;top:2px;left:18px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></div>
+                </div>
+                <div>
+                    <div style="font-size:13px;font-weight:600;color:var(--text);">Send invite email to patient</div>
+                    <div style="font-size:11px;color:var(--text-2);">Requires SMTP configured in Settings</div>
+                </div>
+            </label>
+
+            <div id="appt-modal-error" style="color:#ef4444;font-size:13px;margin-bottom:10px;min-height:18px;"></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button onclick="closeApptModal()" style="padding:10px 20px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);cursor:pointer;font-size:14px;">Cancel</button>
+                <button onclick="saveAppt()" class="btn-primary" style="padding:10px 20px;gap:8px;font-size:14px;">
+                    <i class="fas fa-calendar-check"></i> <span id="appt-modal-save-label">Save Appointment</span>
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -1677,16 +1756,24 @@ function openApptModal(appt) {
     document.getElementById('am-email').value = appt ? (appt.patient_email || '') : '';
     document.getElementById('am-phone').value = appt ? (appt.patient_phone || '') : '';
     document.getElementById('am-notes').value = appt ? (appt.notes || '') : '';
-    document.getElementById('am-duration').value = appt ? appt.duration_minutes : '30';
-    document.getElementById('am-send-invite').checked = !appt;
-    // Format datetime-local value
+    // Duration buttons
+    const dur = appt ? String(appt.duration_minutes) : '15';
+    document.getElementById('am-duration').value = dur;
+    document.querySelectorAll('.appt-dur-btn').forEach(b => b.classList.toggle('active', b.dataset.val === dur));
+    // Split date + time
     if (appt && appt.scheduled_at) {
         const d = new Date(appt.scheduled_at);
         const pad = n => String(n).padStart(2,'0');
-        document.getElementById('am-datetime').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        document.getElementById('am-date').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        document.getElementById('am-time').value = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
     } else {
-        document.getElementById('am-datetime').value = '';
+        document.getElementById('am-date').value = '';
+        document.getElementById('am-time').value = '';
     }
+    // Reset invite toggle
+    const cb = document.getElementById('am-send-invite');
+    cb.checked = !appt;
+    updateInviteToggle(cb);
     document.getElementById('appt-modal-error').textContent = '';
     const modal = document.getElementById('appt-modal');
     modal.style.display = 'flex';
@@ -1696,12 +1783,16 @@ function closeApptModal() { document.getElementById('appt-modal').style.display 
 
 async function saveAppt() {
     const id = document.getElementById('appt-modal-id').value;
+    // Combine split date + time into scheduled_at
+    const dateVal = document.getElementById('am-date').value;
+    const timeVal = document.getElementById('am-time').value;
+    const combinedDt = dateVal && timeVal ? `${dateVal}T${timeVal}` : (dateVal || '');
     const body = {
         patient_name: document.getElementById('am-name').value.trim(),
         patient_email: document.getElementById('am-email').value.trim(),
         patient_phone: document.getElementById('am-phone').value.trim(),
-        scheduled_at: document.getElementById('am-datetime').value,
-        duration_minutes: parseInt(document.getElementById('am-duration').value),
+        scheduled_at: combinedDt,
+        duration_minutes: parseInt(document.getElementById('am-duration').value) || 30,
         notes: document.getElementById('am-notes').value.trim(),
         send_invite: document.getElementById('am-send-invite').checked,
     };
@@ -1740,6 +1831,20 @@ async function deleteAppt(id) {
         showToast('Appointment deleted');
         loadAppointments();
     } catch(e) { showToast(e.message, 'error'); }
+}
+
+function selectDuration(btn) {
+    document.querySelectorAll('.appt-dur-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('am-duration').value = btn.dataset.val;
+}
+
+function updateInviteToggle(cb) {
+    const track = document.getElementById('am-invite-track');
+    const thumb = document.getElementById('am-invite-thumb');
+    if (!track || !thumb) return;
+    track.style.background = cb.checked ? 'var(--teal)' : 'rgba(255,255,255,.15)';
+    thumb.style.left = cb.checked ? '18px' : '2px';
 }
 
 /* ═══════════════════════════════════════════════════

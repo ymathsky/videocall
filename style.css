@@ -1651,4 +1651,32 @@ select.form-select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(
 .pt-timeline-item:last-child { border-bottom: none; }
 .pt-timeline-item > i { margin-top: 2px; flex-shrink: 0; width: 18px; text-align: center; }
 .pt-timeline-date { font-size: 11px; color: var(--text-2); margin-top: 3px; }
+
+/* ═══════════════════════════════════════════════════════
+   APPOINTMENT MODAL — duration pill buttons
+═══════════════════════════════════════════════════════ */
+.appt-dur-btn {
+    flex: 1;
+    padding: 8px 6px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+    font-family: inherit;
+}
+.appt-dur-btn:hover {
+    background: rgba(20,184,166,.08);
+    border-color: var(--teal);
+    color: var(--teal);
+}
+.appt-dur-btn.active {
+    background: rgba(20,184,166,.15);
+    border-color: var(--teal);
+    color: var(--teal);
+    font-weight: 700;
+}
 }
