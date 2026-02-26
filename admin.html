@@ -1778,8 +1778,13 @@
         }
     };
 
-    document.getElementById('invite-name').addEventListener('input', updateInviteLink);
-    document.getElementById('invite-email').addEventListener('input', updateInviteLink);
+    // Attach after DOM is fully parsed (elements live after this script tag)
+    document.addEventListener('DOMContentLoaded', () => {
+        const invName  = document.getElementById('invite-name');
+        const invEmail = document.getElementById('invite-email');
+        if (invName)  invName.addEventListener('input', updateInviteLink);
+        if (invEmail) invEmail.addEventListener('input', updateInviteLink);
+    });
 </script>
 
 <!-- Invite Patient Modal -->
