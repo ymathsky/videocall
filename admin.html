@@ -75,6 +75,9 @@
         <button class="sidebar-btn" data-section="analytics-section">
             <i class="fas fa-chart-bar"></i> Analytics
         </button>
+        <button class="sidebar-btn" data-section="security-section">
+            <i class="fas fa-lock"></i> Security
+        </button>
 
         <div class="sidebar-section-label">Quick Links</div>
         <a href="/" class="sidebar-btn" style="text-decoration:none;display:flex;align-items:center;gap:10px;color:var(--text-2);">
@@ -389,6 +392,36 @@
                 </div>
             </div>
             <div id="users-grid" class="users-grid"></div>
+        </div>
+
+        <!-- Security / Change Password section -->
+        <div id="security-section" class="admin-section">
+            <div class="admin-topbar">
+                <div class="admin-topbar-title">
+                    <h2>Security</h2>
+                    <span>Change your admin panel password</span>
+                </div>
+            </div>
+            <div class="settings-card" style="max-width:460px;">
+                <h3><i class="fas fa-key" style="color:var(--teal);margin-right:8px;"></i>Change Password</h3>
+                <p class="settings-sub" style="margin-bottom:20px;">Your new password will be stored securely (scrypt hash) in the database and will override the <code>ADMIN_PASSWORD</code> environment variable.</p>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label for="sec-current-pwd">Current Password</label>
+                    <input type="password" id="sec-current-pwd" placeholder="Enter current password" autocomplete="current-password" />
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label for="sec-new-pwd">New Password</label>
+                    <input type="password" id="sec-new-pwd" placeholder="At least 8 characters" autocomplete="new-password" />
+                </div>
+                <div class="form-group" style="margin-bottom:20px;">
+                    <label for="sec-confirm-pwd">Confirm New Password</label>
+                    <input type="password" id="sec-confirm-pwd" placeholder="Repeat new password" autocomplete="new-password" />
+                </div>
+                <div id="sec-error" style="font-size:13px;color:var(--red,#ef4444);min-height:18px;margin-bottom:12px;"></div>
+                <button id="sec-save-btn" class="btn-primary" style="gap:8px;">
+                    <i class="fas fa-floppy-disk"></i> Update Password
+                </button>
+            </div>
         </div>
 
         <!-- Analytics section -->
@@ -1101,6 +1134,39 @@
     });
 
     checkAuth();
+
+    /* ─── Change Password ─── */
+    document.getElementById('sec-save-btn').addEventListener('click', async () => {
+        const current  = document.getElementById('sec-current-pwd').value;
+        const newPwd   = document.getElementById('sec-new-pwd').value;
+        const confirm  = document.getElementById('sec-confirm-pwd').value;
+        const errEl    = document.getElementById('sec-error');
+        errEl.textContent = '';
+
+        if (!current || !newPwd || !confirm) { errEl.textContent = 'All three fields are required.'; return; }
+        if (newPwd.length < 8)               { errEl.textContent = 'New password must be at least 8 characters.'; return; }
+        if (newPwd !== confirm)              { errEl.textContent = 'New passwords do not match.'; return; }
+
+        const btn = document.getElementById('sec-save-btn');
+        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+        try {
+            const r = await fetch('/api/admin/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentPassword: current, newPassword: newPwd })
+            });
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.error || 'Failed');
+            document.getElementById('sec-current-pwd').value = '';
+            document.getElementById('sec-new-pwd').value = '';
+            document.getElementById('sec-confirm-pwd').value = '';
+            showToast('Password updated successfully!');
+        } catch(e) {
+            errEl.textContent = e.message;
+        } finally {
+            btn.disabled = false; btn.innerHTML = '<i class="fas fa-floppy-disk"></i> Update Password';
+        }
+    });
 
     /* ─── Invite Patient modal JS ─── */
     let _inviteRoom = '';

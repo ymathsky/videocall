@@ -36,6 +36,18 @@ app.use(express.json());
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+let adminPwHash = null; // overrides env var when password is changed via admin panel
+let adminPwSalt = null;
+
+function verifyAdminPassword(password) {
+  if (adminPwHash && adminPwSalt) {
+    try {
+      const attempt = crypto.scryptSync(password, adminPwSalt, 64).toString('hex');
+      return crypto.timingSafeEqual(Buffer.from(attempt, 'hex'), Buffer.from(adminPwHash, 'hex'));
+    } catch { return false; }
+  }
+  return password === ADMIN_PASSWORD;
+}
 const ADMIN_SESSION_TTL_MS = 1000 * 60 * 60 * 8;
 const adminSessions = new Map();
 
@@ -136,6 +148,9 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
       defaults.forEach(([k, v]) => {
         db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, [k, v]);
       });
+      // Load stored admin password hash (if changed via admin panel)
+      db.get(`SELECT value FROM settings WHERE key='admin_pw_hash'`, [], (e, r) => { if (!e && r) adminPwHash = r.value; });
+      db.get(`SELECT value FROM settings WHERE key='admin_pw_salt'`, [], (e, r) => { if (!e && r) adminPwSalt = r.value; });
     });
 
     // Security schema migrations (safe to run repeatedly — errors are silently ignored)
@@ -214,7 +229,7 @@ app.get('/host/:room', (req, res) => {
 
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
-  if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+  if (username !== ADMIN_USERNAME || !verifyAdminPassword(password)) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
@@ -230,6 +245,28 @@ app.post('/api/admin/login', (req, res) => {
 
 app.get('/api/admin/me', requireAdmin, (req, res) => {
   res.json({ authenticated: true, username: ADMIN_USERNAME });
+});
+
+app.post('/api/admin/change-password', requireAdmin, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword)
+    return res.status(400).json({ error: 'Both fields are required.' });
+  if (!verifyAdminPassword(currentPassword))
+    return res.status(401).json({ error: 'Current password is incorrect.' });
+  if (newPassword.length < 8)
+    return res.status(400).json({ error: 'New password must be at least 8 characters.' });
+
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(newPassword, salt, 64).toString('hex');
+  db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_pw_hash', ?)`, [hash], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    db.run(`INSERT OR REPLACE INTO settings (key, value) VALUES ('admin_pw_salt', ?)`, [salt], (err2) => {
+      if (err2) return res.status(500).json({ error: err2.message });
+      adminPwHash = hash;
+      adminPwSalt = salt;
+      res.json({ message: 'Password changed successfully.' });
+    });
+  });
 });
 
 app.post('/api/admin/logout', requireAdmin, (req, res) => {
