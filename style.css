@@ -1679,4 +1679,53 @@ select.form-select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(
     color: var(--teal);
     font-weight: 700;
 }
+
+/* ═══════════════════════════════════════════════════════
+   ANALYTICS FILTER BAR
+═══════════════════════════════════════════════════════ */
+.analytics-filter-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 10px 14px;
+    margin-bottom: 18px;
+}
+.analytics-presets {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.an-preset {
+    padding: 5px 13px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s, border-color .15s, color .15s;
+    font-family: inherit;
+}
+.an-preset:hover {
+    background: rgba(20,184,166,.08);
+    border-color: var(--teal);
+    color: var(--teal);
+}
+.an-preset.active {
+    background: rgba(20,184,166,.15);
+    border-color: var(--teal);
+    color: var(--teal);
+    font-weight: 700;
+}
+.analytics-date-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
 }

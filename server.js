@@ -408,24 +408,47 @@ app.get('/api/meetings', requireAdmin, (req, res) => {
 
 // ── Analytics ──────────────────────────────────────────────────────────────
 app.get('/api/analytics', requireAdmin, (req, res) => {
+  // Optional date range: ?from=YYYY-MM-DD&to=YYYY-MM-DD
+  const from = req.query.from ? req.query.from + ' 00:00:00' : null;
+  const to   = req.query.to   ? req.query.to   + ' 23:59:59' : null;
+  const rangeClause = (existing = '') => {
+    const parts = [];
+    if (from) parts.push(`created_at >= '${from}'`);
+    if (to)   parts.push(`created_at <= '${to}'`);
+    if (!parts.length) return existing;
+    const joiner = existing.trim() ? ' AND ' : ' WHERE ';
+    return existing + joiner + parts.join(' AND ');
+  };
+  const startedRange = (existing = '') => {
+    const parts = [];
+    if (from) parts.push(`started_at >= '${from}'`);
+    if (to)   parts.push(`started_at <= '${to}'`);
+    if (!parts.length) return existing;
+    const joiner = existing.trim() ? ' AND ' : ' WHERE ';
+    return existing + joiner + parts.join(' AND ');
+  };
+
+  const weekWindow  = from ? '' : `created_at >= datetime('now','-56 days')`;
+  const dayWindow   = from ? '' : `created_at >= datetime('now','-30 days')`;
+
   const q = {
-    totalMeetings:     `SELECT COUNT(*) AS count FROM meetings`,
-    completedMeetings: `SELECT COUNT(*) AS count FROM meetings WHERE duration_seconds IS NOT NULL AND duration_seconds > 0`,
-    avgDuration:       `SELECT ROUND(AVG(duration_seconds)) AS avg FROM meetings WHERE duration_seconds > 0`,
-    totalDuration:     `SELECT SUM(duration_seconds) AS total FROM meetings WHERE duration_seconds IS NOT NULL`,
+    totalMeetings:     `SELECT COUNT(*) AS count FROM meetings${rangeClause()}`,
+    completedMeetings: `SELECT COUNT(*) AS count FROM meetings${rangeClause(' WHERE duration_seconds IS NOT NULL AND duration_seconds > 0')}`,
+    avgDuration:       `SELECT ROUND(AVG(duration_seconds)) AS avg FROM meetings${rangeClause(' WHERE duration_seconds > 0')}`,
+    totalDuration:     `SELECT SUM(duration_seconds) AS total FROM meetings${rangeClause(' WHERE duration_seconds IS NOT NULL')}`,
     totalPatients:     `SELECT COUNT(DISTINCT LOWER(TRIM(email))) AS count FROM consents WHERE email != ''`,
     returningPatients: `SELECT COUNT(*) AS count FROM (SELECT email FROM consents WHERE email != '' GROUP BY LOWER(TRIM(email)) HAVING COUNT(*) > 1)`,
     perWeek: `
       SELECT strftime('%Y-%W', created_at) AS week, COUNT(*) AS count
-      FROM meetings WHERE created_at >= datetime('now','-56 days')
+      FROM meetings${rangeClause(weekWindow ? ` WHERE ${weekWindow}` : '')}
       GROUP BY week ORDER BY week ASC`,
     perHour: `
       SELECT CAST(strftime('%H', started_at) AS INTEGER) AS hour, COUNT(*) AS count
-      FROM meetings WHERE started_at IS NOT NULL
+      FROM meetings${startedRange(' WHERE started_at IS NOT NULL')}
       GROUP BY hour ORDER BY hour ASC`,
     perDay: `
       SELECT DATE(created_at) AS day, COUNT(*) AS count
-      FROM meetings WHERE created_at >= datetime('now','-30 days')
+      FROM meetings${rangeClause(dayWindow ? ` WHERE ${dayWindow}` : '')}
       GROUP BY day ORDER BY day ASC`,
     durationBuckets: `
       SELECT
@@ -437,7 +460,7 @@ app.get('/api/analytics', requireAdmin, (req, res) => {
           ELSE '30+ min'
         END AS bucket,
         COUNT(*) AS count
-      FROM meetings WHERE duration_seconds > 0
+      FROM meetings${rangeClause(' WHERE duration_seconds > 0')}
       GROUP BY bucket`
   };
   const result = {};
