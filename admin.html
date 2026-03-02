@@ -10,6 +10,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        .create-grid {
+            display: grid;
+            grid-template-columns: minmax(0,1.1fr) minmax(0,0.9fr);
+            gap: 20px;
+            align-items: start;
+        }
+        @media (max-width: 860px) {
+            .create-grid { grid-template-columns: 1fr; }
+        }
+    </style>
 </head>
 <body>
 
@@ -175,7 +186,11 @@
                 </div>
             </div>
 
-            <div class="panel-card" style="max-width:600px;">
+            <div class="create-grid">
+
+            <!-- LEFT: form cards -->
+            <div style="display:flex;flex-direction:column;gap:16px;">
+            <div class="panel-card" style="margin:0;">
                 <div class="panel-card-header">
                     <h3><i class="fas fa-wand-magic-sparkles" style="color:var(--teal);margin-right:8px;"></i>New Consultation Room</h3>
                 </div>
@@ -240,7 +255,7 @@
                 </div>
             </div>
 
-            <div class="panel-card" style="max-width:600px;margin-top:0;">
+            <div class="panel-card" style="margin:0;">
                 <div class="panel-card-header">
                     <h3><i class="fas fa-file-signature" style="color:var(--teal);margin-right:8px;"></i>Patient Consent Form</h3>
                 </div>
@@ -254,6 +269,66 @@
                     </button>
                 </div>
             </div>
+            </div><!-- /left col -->
+
+            <!-- RIGHT column -->
+            <div style="display:flex;flex-direction:column;gap:16px;">
+
+                <!-- How it works -->
+                <div class="panel-card" style="margin:0;">
+                    <div class="panel-card-header">
+                        <h3><i class="fas fa-circle-info" style="color:var(--teal);margin-right:8px;"></i>How It Works</h3>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:10px;padding-top:2px;">
+                        <div style="display:flex;gap:12px;align-items:flex-start;">
+                            <div style="min-width:26px;height:26px;border-radius:50%;background:rgba(20,184,166,.15);border:1.5px solid rgba(20,184,166,.3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--teal);">1</div>
+                            <div><div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">Enter a room name</div><div style="font-size:12px;color:var(--text-3);">Use the patient's name or a short topic so you can identify it later.</div></div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:flex-start;">
+                            <div style="min-width:26px;height:26px;border-radius:50%;background:rgba(20,184,166,.15);border:1.5px solid rgba(20,184,166,.3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--teal);">2</div>
+                            <div><div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">Copy Patient Invitation</div><div style="font-size:12px;color:var(--text-3);">Send the invitation to the patient via SMS or email — it includes the link and password.</div></div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:flex-start;">
+                            <div style="min-width:26px;height:26px;border-radius:50%;background:rgba(20,184,166,.15);border:1.5px solid rgba(20,184,166,.3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--teal);">3</div>
+                            <div><div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">Patient signs consent &amp; joins</div><div style="font-size:12px;color:var(--text-3);">The patient clicks the link, fills the consent form, then enters the waiting room.</div></div>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:flex-start;">
+                            <div style="min-width:26px;height:26px;border-radius:50%;background:rgba(20,184,166,.15);border:1.5px solid rgba(20,184,166,.3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--teal);">4</div>
+                            <div><div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">You join via Host Link</div><div style="font-size:12px;color:var(--text-3);">Use "Join Now" or the Host Link to start the session as the provider — no consent form required.</div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent rooms -->
+                <div class="panel-card" style="margin:0;">
+                    <div class="panel-card-header" style="justify-content:space-between;">
+                        <h3><i class="fas fa-history" style="color:var(--teal);margin-right:8px;"></i>Recent Rooms</h3>
+                        <button onclick="switchSection('meetings-section')" style="font-size:12px;background:none;border:none;color:var(--teal);cursor:pointer;padding:0;">View all &rsaquo;</button>
+                    </div>
+                    <div id="create-recent-rooms" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;"></div>
+                </div>
+
+                <!-- Quick consent send -->
+                <div class="panel-card" style="margin:0;">
+                    <div class="panel-card-header">
+                        <h3><i class="fas fa-paper-plane" style="color:var(--teal);margin-right:8px;"></i>Quick Consent Send</h3>
+                    </div>
+                    <p style="font-size:12px;color:var(--text-3);margin-bottom:14px;">Copy a standalone consent form invitation for a patient (no meeting room needed).</p>
+                    <div class="form-group" style="margin-bottom:10px;">
+                        <label style="font-size:12px;">Patient Name <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
+                        <input type="text" id="qs-name" placeholder="Jane Doe" style="font-size:13px;" />
+                    </div>
+                    <div class="form-group" style="margin-bottom:12px;">
+                        <label style="font-size:12px;">Note / Appointment Date <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
+                        <input type="text" id="qs-note" placeholder="e.g. Follow-up on May 20 at 2 PM" style="font-size:13px;" />
+                    </div>
+                    <button onclick="quickCopyConsent()" class="btn-primary" style="width:100%;justify-content:center;padding:10px;font-size:13px;gap:7px;">
+                        <i class="fas fa-copy"></i> Copy Consent Invitation
+                    </button>
+                </div>
+
+            </div><!-- /right col -->
+            </div><!-- /grid -->
         </div>
 
         <!-- Meetings List section -->
@@ -932,6 +1007,7 @@
         if (sectionId === 'appointments-section')  loadAppointments();
         if (sectionId === 'patients-section')      loadPatients();
         if (sectionId === 'recordings-section')    loadRecordings();
+        if (sectionId === 'create-section')        loadCreateRecentRooms();
     }
 
     /* --- Test Email --- */
@@ -1060,7 +1136,7 @@
                 body: JSON.stringify({ roomName: name, password })
             });
             if (!res.ok) throw new Error('Could not save meeting');
-            loadMeetings(); loadOverview();
+            loadMeetings(); loadOverview(); loadCreateRecentRooms();
         } catch (err) { if (err.message !== 'session_expired') showToast(err.message); return; }
 
         const directLink = window.location.origin + '/host/' + encodeURIComponent(name);
@@ -1385,7 +1461,7 @@ Do not share this link with patients — send them the Patient Link instead.`;
     function showDashboard() {
         loginShell.style.display = 'none';
         adminShell.classList.add('active');
-        loadOverview(); loadMeetings(); loadConsents(); loadSettings(); loadUsers();
+        loadOverview(); loadMeetings(); loadConsents(); loadSettings(); loadUsers(); loadCreateRecentRooms();
     }
 
     async function checkAuth() {
@@ -1406,6 +1482,56 @@ Do not share this link with patients — send them the Patient Link instead.`;
 
     function copyConsentLink() {
         navigator.clipboard.writeText(window.location.origin + '/consent').then(() => showToast('Consent link copied!'));
+    }
+
+    function quickCopyConsent() {
+        const name = (document.getElementById('qs-name').value || '').trim();
+        const note = (document.getElementById('qs-note').value || '').trim();
+        const consentUrl = window.location.origin + '/consent';
+        let msg = '';
+        if (name) msg += `Dear ${name},\n\n`;
+        else msg += `Dear Patient,\n\n`;
+        msg += `You have an upcoming telehealth consultation with ${siteCompanyName}.\n\n`;
+        if (note) msg += `Appointment: ${note}\n\n`;
+        msg += `Before your visit, please complete and sign your consent form using the link below:\n\n`;
+        msg += `${consentUrl}\n\n`;
+        msg += `This only takes a few minutes. If you have any questions, please contact our office.\n\n`;
+        msg += `Thank you,\n${siteCompanyName}`;
+        navigator.clipboard.writeText(msg).then(() => showToast('Consent invitation copied!'));
+    }
+
+    /* Load recent rooms for the Create Meeting sidebar */
+    async function loadCreateRecentRooms() {
+        const container = document.getElementById('create-recent-rooms');
+        if (!container) return;
+        try {
+            const meetings = await (await apiFetch('/api/meetings')).json();
+            const recent = meetings.slice(0,6);
+            if (!recent.length) {
+                container.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">No rooms created yet.</div>';
+                return;
+            }
+            container.innerHTML = recent.map(m => {
+                const ts = m.created_at ? new Date(m.created_at).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}) : '';
+                const roomUrl = `${window.location.origin}/?room=${encodeURIComponent(m.room_name)}`;
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-md);gap:8px;">
+                    <div style="min-width:0;">
+                        <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${m.room_name}">${m.room_name}</div>
+                        ${ts ? `<div style="font-size:11px;color:var(--text-3);">${ts}</div>` : ''}
+                    </div>
+                    <div style="display:flex;gap:6px;flex-shrink:0;">
+                        <button onclick="navigator.clipboard.writeText('${roomUrl}').then(()=>showToast('Link copied!'))" title="Copy patient link" style="background:none;border:1px solid var(--border);border-radius:var(--r-md);color:var(--text-3);padding:4px 8px;font-size:11px;cursor:pointer;">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <a href="${roomUrl}" target="_blank" title="Join room" style="background:none;border:1px solid var(--border);border-radius:var(--r-md);color:var(--teal);padding:4px 8px;font-size:11px;text-decoration:none;display:flex;align-items:center;">
+                            <i class="fas fa-arrow-right-to-bracket"></i>
+                        </a>
+                    </div>
+                </div>`;
+            }).join('');
+        } catch(e) {
+            container.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">Could not load recent rooms.</div>';
+        }
     }
 
     /* ─── Users ─── */
