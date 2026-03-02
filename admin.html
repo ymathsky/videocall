@@ -205,6 +205,9 @@
                                 <button id="copy-btn" class="secondary-btn" style="padding:8px 13px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);font-size:12px;gap:6px;">
                                     <i class="fas fa-copy"></i> Copy Patient Link
                                 </button>
+                                <button id="copy-patient-invite-btn" class="secondary-btn" style="padding:8px 13px;border-radius:var(--r-md);border:1px solid rgba(20,184,166,.4);background:rgba(20,184,166,.07);color:var(--teal);font-size:12px;gap:6px;">
+                                    <i class="fas fa-envelope"></i> Copy Patient Invitation
+                                </button>
                             </div>
                         </div>
                         <!-- Meeting password — share separately with the patient -->
@@ -224,6 +227,9 @@
                             <div class="inline-actions">
                                 <button id="copy-host-btn" class="secondary-btn" style="padding:8px 13px;border-radius:var(--r-md);border:1px solid var(--border);background:var(--bg);color:var(--text-2);font-size:12px;gap:6px;">
                                     <i class="fas fa-copy"></i> Copy Host Link
+                                </button>
+                                <button id="copy-provider-invite-btn" class="secondary-btn" style="padding:8px 13px;border-radius:var(--r-md);border:1px solid rgba(34,197,94,.4);background:rgba(34,197,94,.07);color:var(--green);font-size:12px;gap:6px;">
+                                    <i class="fas fa-envelope"></i> Copy Provider Invitation
                                 </button>
                                 <button id="join-btn" class="btn-primary" style="padding:8px 13px;font-size:13px;gap:6px;">
                                     <i class="fas fa-external-link-alt"></i> Join Now
@@ -1078,6 +1084,41 @@
         navigator.clipboard.writeText(hostLink.textContent).then(() => showToast('Host link copied!'));
     });
 
+    document.getElementById('copy-patient-invite-btn').addEventListener('click', () => {
+        const link = patientLink.textContent.trim();
+        const pwd  = document.getElementById('result-password').textContent.trim();
+        const name = siteCompanyName;
+        const msg =
+`You have been invited to a telehealth consultation with ${name}.
+
+Please click the link below to complete your consent form and join your video session:
+${link}
+
+Meeting Password: ${pwd}
+
+This link includes your consent form — simply fill it out and you will be connected automatically.
+
+If you have any questions, please contact us before your appointment.`;
+        navigator.clipboard.writeText(msg).then(() => showToast('Patient invitation copied!'));
+    });
+
+    document.getElementById('copy-provider-invite-btn').addEventListener('click', () => {
+        const link = hostLink.textContent.trim();
+        const pwd  = document.getElementById('result-password').textContent.trim();
+        const room = roomInput.value.trim();
+        const name = siteCompanyName;
+        const msg =
+`Your telehealth consultation room is ready — ${name}
+
+Room: ${room}
+Host Link (Provider Only): ${link}
+Meeting Password: ${pwd}
+
+This host link bypasses the consent form and is for providers only.
+Do not share this link with patients — send them the Patient Link instead.`;
+        navigator.clipboard.writeText(msg).then(() => showToast('Provider invitation copied!'));
+    });
+
     /* â”€â”€â”€ Data loaders â”€â”€â”€ */
     async function loadOverview() {
         try {
@@ -1532,6 +1573,7 @@
             if (!res.ok) return;
             const s = await res.json();
             if (s.company_name) {
+                siteCompanyName = s.company_name;
                 document.getElementById('cfg-company').value = s.company_name;
                 document.querySelectorAll('.dynamic-company-name').forEach(el => el.textContent = s.company_name);
                 document.title = s.company_name + ' — Admin';
