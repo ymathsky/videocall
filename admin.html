@@ -979,6 +979,13 @@
     const copyBtn     = document.getElementById('copy-btn');
     const copyHostBtn = document.getElementById('copy-host-btn');
     const joinBtn     = document.getElementById('join-btn');
+    /* --- Site-wide setting globals (populated by loadSettings) --- */
+    let siteCompanyName    = 'Visiting Medical Physicians Inc.';
+    let siteLogoUrl        = '';
+    let siteContactPhone   = '847.252.1858';
+    let siteContactFax     = '847.252.1848';
+    let siteContactEmail   = 'care@visitingmedicalphysician.com';
+    let siteContactAddress = '1340 Remington Rd. Suite M Schaumburg, IL 60173';
 
     /* â”€â”€â”€ Section switching â”€â”€â”€ */
     document.querySelectorAll('.sidebar-btn[data-section]').forEach(btn => {
