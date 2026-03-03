@@ -1404,36 +1404,91 @@ Do not share this link with patients — send them the Patient Link instead.`;
     }
 
     function printConsentRecord() {
-        const name = document.getElementById('cm-name').textContent;
-        const email = document.getElementById('cm-email').textContent;
-        const signed = document.getElementById('cm-signed').textContent;
-        const room = document.getElementById('cm-room').textContent;
+        const name      = document.getElementById('cm-name').textContent;
+        const email     = document.getElementById('cm-email').textContent;
+        const signed    = document.getElementById('cm-signed').textContent;
+        const room      = document.getElementById('cm-room').textContent;
         const submitted = document.getElementById('cm-submitted').textContent;
-        const sigSrc = document.getElementById('cm-signature').src;
-        const win = window.open('', '_blank', 'width=700,height=900');
-        win.document.write(`<!DOCTYPE html><html><head><title>Consent Form — ${name}</title>
+        const sigSrc    = document.getElementById('cm-signature').src;
+        const logoHtml  = siteLogoUrl
+            ? `<img src="${siteLogoUrl}" alt="logo" style="height:70px;width:auto;object-fit:contain;" onerror="this.style.display='none'" />`
+            : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style="height:64px;width:auto;"><circle cx="24" cy="24" r="22" stroke="#319795" stroke-width="2.5" fill="none"/><path d="M6 24h7l3-8 6 16 5-18 4 10h11" stroke="#319795" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        const win = window.open('', '_blank', 'width=780,height=1000');
+        win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Consent Form — ${name}</title>
         <style>
-            body { font-family: Arial, sans-serif; padding: 40px; color: #111; }
-            h1 { font-size: 20px; margin-bottom: 4px; }
-            .sub { color: #666; font-size: 13px; margin-bottom: 24px; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-            .field { border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
-            .field label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #888; display: block; margin-bottom: 4px; }
-            .field span { font-size: 14px; }
-            .agreement { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 24px; font-size: 13px; line-height: 1.7; }
-            .sig-box { border: 2px solid #333; border-radius: 8px; padding: 16px; text-align: center; margin-bottom: 12px; }
-            .sig-box img { max-width: 100%; max-height: 150px; }
-            .footer { font-size: 11px; color: #888; text-align: right; }
-            @media print { body { padding: 20px; } }
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: Arial, sans-serif; padding: 36px 44px; color: #111; font-size: 13px; }
+
+            /* ── Clinic header ── */
+            .clinic-header { display: flex; align-items: center; gap: 18px; padding-bottom: 16px; border-bottom: 2.5px solid #319795; margin-bottom: 22px; }
+            .clinic-logo   { flex-shrink: 0; }
+            .clinic-info h1 { font-size: 20px; font-weight: 700; color: #5b21b6; margin-bottom: 3px; }
+            .clinic-info p  { font-size: 12px; color: #444; line-height: 1.55; }
+            .clinic-info a  { color: #319795; text-decoration: none; }
+
+            /* ── Document title ── */
+            .doc-title { text-align: center; margin-bottom: 20px; }
+            .doc-title h2 { font-size: 17px; font-weight: 700; color: #1a202c; letter-spacing: .02em; margin-bottom: 3px; }
+            .doc-title .doc-sub { font-size: 11px; color: #888; }
+
+            /* ── Patient fields grid ── */
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+            .field { border: 1px solid #d1d5db; border-radius: 7px; padding: 11px 14px; background: #f9fafb; }
+            .field label { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #9ca3af; display: block; margin-bottom: 4px; }
+            .field span   { font-size: 13.5px; font-weight: 500; color: #111827; }
+
+            /* ── Agreement section ── */
+            .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #6b7280; margin-bottom: 10px; }
+            .agreement { border: 1px solid #d1d5db; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; background: #f0fdfa; }
+            .agreement strong { display: block; font-size: 13px; color: #111827; margin-bottom: 10px; }
+            .agreement ul { padding-left: 18px; }
+            .agreement li { font-size: 12.5px; line-height: 1.65; color: #374151; margin-bottom: 3px; }
+            .agreement li::marker { color: #319795; }
+
+            /* ── Signature ── */
+            .sig-label { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #9ca3af; margin-bottom: 8px; }
+            .sig-box   { border: 1.5px solid #374151; border-radius: 8px; background: #fff; text-align: center; padding: 10px; margin-bottom: 10px; min-height: 110px; display: flex; align-items: center; justify-content: center; }
+            .sig-box img { max-width: 100%; max-height: 130px; }
+
+            /* ── Footer ── */
+            .doc-footer { margin-top: 18px; padding-top: 10px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+            .doc-footer .ts  { font-size: 10.5px; color: #9ca3af; }
+            .doc-footer .badge { font-size: 9.5px; color: #fff; background: #319795; padding: 3px 9px; border-radius: 20px; letter-spacing: .03em; }
+
+            @media print {
+                body { padding: 20px 28px; }
+                @page { margin: 15mm; }
+            }
         </style></head><body>
-        <h1>Telehealth Consent Form</h1>
-        <div class="sub">Visiting Medical Physician Inc.</div>
+
+        <!-- Clinic Header -->
+        <div class="clinic-header">
+            <div class="clinic-logo">${logoHtml}</div>
+            <div class="clinic-info">
+                <h1>${siteCompanyName}</h1>
+                <p>${siteContactAddress}</p>
+                <p>Phone: ${siteContactPhone}&nbsp;&nbsp;|&nbsp;&nbsp;F: ${siteContactFax}</p>
+                <p>Email: <a href="mailto:${siteContactEmail}">${siteContactEmail}</a></p>
+            </div>
+        </div>
+
+        <!-- Document Title -->
+        <div class="doc-title">
+            <h2>Telehealth Consent Form</h2>
+            <div class="doc-sub">Patient Acknowledgment &amp; Digital Authorization</div>
+        </div>
+
+        <!-- Patient Info -->
+        <div class="section-title">Patient Information</div>
         <div class="grid">
             <div class="field"><label>Patient Name</label><span>${name}</span></div>
             <div class="field"><label>Email</label><span>${email}</span></div>
             <div class="field"><label>Signed Date</label><span>${signed}</span></div>
             <div class="field"><label>Session / Room</label><span>${room}</span></div>
         </div>
+
+        <!-- Agreement -->
+        <div class="section-title">Consent Agreement</div>
         <div class="agreement">
             <strong>The patient confirmed that they:</strong>
             <ul>
@@ -1444,9 +1499,17 @@ Do not share this link with patients — send them the Patient Link instead.`;
                 <li>Agree to the collection and storage of their information for medical record purposes</li>
             </ul>
         </div>
-        <div class="field" style="margin-bottom:6px;"><label>Digital Signature</label></div>
-        <div class="sig-box"><img src="${sigSrc}" /></div>
-        <div class="footer">${submitted}</div>
+
+        <!-- Signature -->
+        <div class="sig-label">Digital Signature</div>
+        <div class="sig-box"><img src="${sigSrc}" alt="Patient Signature" /></div>
+
+        <!-- Footer -->
+        <div class="doc-footer">
+            <span class="ts">${submitted}</span>
+            <span class="badge">&#x2713; Digitally Signed</span>
+        </div>
+
         </body></html>`);
         win.document.close();
         win.focus();
@@ -1706,10 +1769,11 @@ Do not share this link with patients — send them the Patient Link instead.`;
             }
             if (s.tagline)       document.getElementById('cfg-tagline').value = s.tagline;
             if (s.timezone)      document.getElementById('cfg-timezone').value = s.timezone;
-            if (s.contact_email) document.getElementById('cfg-email').value = s.contact_email;
-            if (s.contact_phone) document.getElementById('cfg-phone').value = s.contact_phone;
+            if (s.contact_email) { document.getElementById('cfg-email').value = s.contact_email; siteContactEmail = s.contact_email; }
+            if (s.contact_phone) { document.getElementById('cfg-phone').value = s.contact_phone; siteContactPhone = s.contact_phone; }
             if (s.company_logo) {
                 document.getElementById('cfg-logo').value = s.company_logo;
+                siteLogoUrl = s.company_logo;
                 applyLogo(s.company_logo);
             }
             if (s.smtp_host)    document.getElementById('cfg-smtp-host').value    = s.smtp_host;
