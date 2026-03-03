@@ -1380,6 +1380,22 @@ io.on('connection', (socket) => {
     socket.participantName = (typeof name === 'string' && name.trim()) ? name.trim() : 'Host';
     // Load meeting record from DB so password and expiry are authoritative
     db.get(`SELECT * FROM meetings WHERE room_name = ?`, [roomName], (err, meeting) => {
+
+      // Helper: after the room is set up, flush any already-waiting patients to the new host
+      const notifyWaiting = () => {
+        const queue = waitingQueues[roomName] || [];
+        queue.forEach(entry => {
+          // Only notify if the patient socket is still connected
+          const patientSocket = io.sockets.sockets.get(entry.socketId);
+          if (patientSocket) {
+            socket.emit('guest-waiting', { socketId: entry.socketId, roomName, name: entry.name });
+          } else {
+            // Socket gone — clean up the queue entry
+            removeFromQueue(roomName, entry.socketId);
+          }
+        });
+      };
+
       if (!meeting) {
         // No DB record — still allow host to create (backward compat / manual rooms)
         activeRooms[roomName] = {
@@ -1390,6 +1406,7 @@ io.on('connection', (socket) => {
         };
         socket.join(roomName);
         socket.emit('created', roomName);
+        notifyWaiting();
         console.log(`Host ${socket.id} created unregistered room ${roomName}`);
         return;
       }
@@ -1408,6 +1425,7 @@ io.on('connection', (socket) => {
       };
       socket.join(roomName);
       socket.emit('created', roomName);
+      notifyWaiting();
       console.log(`Host ${socket.id} created room ${roomName}`);
     });
   });

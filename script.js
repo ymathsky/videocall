@@ -110,6 +110,12 @@ window.onload = () => {
             if (isHostParam) {
                 isHost = true;
                 setTimeout(() => { socket.emit('create-room', roomParam, displayName); }, 200);
+            } else if (urlJoinToken) {
+                // Patient came via consent form — token is the auth credential.
+                // Server skips password check when a valid token is supplied, so
+                // we go straight to join-request without showing the password modal.
+                document.getElementById('room-selection-container').style.display = 'none';
+                socket.emit('join-request', roomParam, '', urlJoinToken, displayName);
             } else {
                 showPasswordModal();
             }
