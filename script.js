@@ -597,6 +597,7 @@ socket.on('join-error', (message) => {
         if (msg)   msg.innerHTML  = 'Please wait. You will be automatically connected<br>once your provider opens the session.';
         if (sub)   { sub.style.display = 'block'; sub.textContent = 'Will re-prompt for password once room is ready…'; }
         overlay.style.display = 'flex';
+        startWaitTimer();
 
         // After 5s hide overlay and re-show password modal so user can try again
         const retryTimer = setTimeout(() => {
@@ -611,6 +612,32 @@ socket.on('join-error', (message) => {
     }
 });
 
+/* ─── Wait timer ─── */
+let _waitTimerInterval = null;
+let _waitStart         = null;
+function startWaitTimer() {
+    _waitStart = Date.now();
+    const el = document.getElementById('waiting-timer');
+    const fmt = (ms) => {
+        const s = Math.floor(ms / 1000);
+        if (s < 60)  return `Waiting ${s}s`;
+        const m = Math.floor(s / 60), sec = s % 60;
+        return `Waiting ${m}m ${sec < 10 ? '0' : ''}${sec}s`;
+    };
+    if (el) el.textContent = fmt(0);
+    clearInterval(_waitTimerInterval);
+    _waitTimerInterval = setInterval(() => {
+        const timerEl = document.getElementById('waiting-timer');
+        if (timerEl) timerEl.textContent = fmt(Date.now() - _waitStart);
+    }, 1000);
+}
+function stopWaitTimer() {
+    clearInterval(_waitTimerInterval);
+    _waitTimerInterval = null;
+    const el = document.getElementById('waiting-timer');
+    if (el) el.textContent = '';
+}
+
 socket.on('waiting-room', () => {
     const icon  = document.getElementById('waiting-icon');
     const title = document.getElementById('waiting-title');
@@ -622,6 +649,7 @@ socket.on('waiting-room', () => {
     if (sub)   sub.style.display = 'none';
     roomSelectionContainer.style = 'display:none';
     waitingRoomOverlay.style = 'display:flex';
+    startWaitTimer();
 });
 
 socket.on('queue-position', ({ position, total }) => {
@@ -713,11 +741,13 @@ window.denyGuest = function(socketId) {
 };
 
 socket.on('denied', () => {
+    stopWaitTimer();
     alert('The host denied your request to join.');
     location.reload();
 });
 
 socket.on('admitted', () => {
+    stopWaitTimer();
     waitingRoomOverlay.style = 'display:none';
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         alert('Your browser does not support camera access or requires HTTPS.');
