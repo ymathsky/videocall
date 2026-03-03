@@ -652,17 +652,37 @@ function playJoinChime() {
 
 socket.on('guest-waiting', (data) => {
     playJoinChime();
+    const arrivedAt = Date.now();
+    const timeStr = new Date(arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
     const notification = document.createElement('div');
     notification.className = 'notification-card';
     notification.id = `notif-${data.socketId}`;
     notification.innerHTML = `
-        <div><strong>${data.name || 'Patient'} wants to join</strong></div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div>
+                <strong>${data.name || 'Patient'} wants to join</strong>
+                <div style="font-size:11px;color:rgba(255,255,255,0.55);margin-top:2px;">
+                    <i class="fas fa-clock" style="margin-right:3px;"></i>Arrived at ${timeStr}
+                    &nbsp;&bull;&nbsp;
+                    <span class="notif-wait-${data.socketId}">waiting 0m</span>
+                </div>
+            </div>
+        </div>
         <div class="notification-actions">
             <button class="btn-admit" onclick="admitGuest('${data.socketId}', '${data.roomName}')">Admit</button>
             <button class="btn-deny" onclick="denyGuest('${data.socketId}')">Deny</button>
         </div>
     `;
     hostNotifications.appendChild(notification);
+
+    // Live wait-time counter — updates every 30 seconds
+    const waitEl = notification.querySelector(`.notif-wait-${data.socketId}`);
+    const waitTimer = setInterval(() => {
+        if (!document.getElementById(`notif-${data.socketId}`)) { clearInterval(waitTimer); return; }
+        const mins = Math.floor((Date.now() - arrivedAt) / 60000);
+        if (waitEl) waitEl.textContent = `waiting ${mins}m`;
+    }, 30000);
 });
 
 // Queue update — host sees live numbered list of waiting patients
