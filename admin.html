@@ -1047,7 +1047,7 @@
             const rows = await res.json();
             if (!rows.length) { el.innerHTML = '<div class="muted" style="padding:12px 0;">No recordings found. Upload recordings from the in-call recording panel.</div>'; return; }
             el.innerHTML = rows.map(r => {
-                const date = new Date(r.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+                const date = fmtDate(r.created_at);
                 const size = r.size_bytes ? (r.size_bytes / 1024 / 1024).toFixed(1) + ' MB' : '—';
                 const dur  = r.duration_seconds ? (Math.floor(r.duration_seconds / 60) + 'm ' + (r.duration_seconds % 60) + 's') : '—';
                 return `<div class="data-item">
@@ -1211,7 +1211,12 @@ Do not share this link with patients — send them the Patient Link instead.`;
             document.getElementById('stat-meetings').textContent = meetings.length;
             document.getElementById('stat-consents').textContent = consents.length;
             const today = new Date().toDateString();
-            document.getElementById('stat-today').textContent = meetings.filter(m => new Date(m.created_at).toDateString() === today).length;
+            document.getElementById('stat-today').textContent = meetings.filter(m => {
+              const d = new Date(m.created_at);
+              const phStr = d.toLocaleDateString('en-PH', { timeZone: SITE_TZ });
+              const todayStr = new Date().toLocaleDateString('en-PH', { timeZone: SITE_TZ });
+              return phStr === todayStr;
+            }).length;
             const list = document.getElementById('overview-meetings-list');
             if (!meetings.length) { list.innerHTML = '<div class="muted">No meetings yet.</div>'; return; }
             list.innerHTML = meetings.slice(0,6).map(m => {
@@ -1221,7 +1226,7 @@ Do not share this link with patients — send them the Patient Link instead.`;
                 const dur = m.duration_seconds != null ? `<span style="font-size:11px;color:var(--teal);margin-left:6px;"><i class="fas fa-clock"></i> ${fmtDuration(m.duration_seconds)}</span>` : '';
                 return `
                 <div class="data-item">
-                    <div><div class="item-title">${m.room_name}${expiryBadge}${dur}</div><div class="item-meta">${new Date(m.created_at).toLocaleString()}</div></div>
+                    <div><div class="item-title">${m.room_name}${expiryBadge}${dur}</div><div class="item-meta">${fmtDate(m.created_at)}</div></div>
                     <a href="/host/${encodeURIComponent(m.room_name)}" target="_blank" class="join-host-btn" title="Join as Host"><i class="fas fa-arrow-right-to-bracket"></i> Join</a>
                 </div>`;
             }).join('');
@@ -1237,7 +1242,7 @@ Do not share this link with patients — send them the Patient Link instead.`;
                 const expiry = m.expires_at ? new Date(m.expires_at) : null;
                 const isExpired = expiry && expiry < new Date();
                 const expiryStr = expiry
-                    ? (isExpired ? '<span style="color:var(--red)">Expired</span>' : 'Expires ' + expiry.toLocaleString())
+                    ? (isExpired ? '<span style="color:var(--red)">Expired</span>' : 'Expires ' + fmtDate(expiry))
                     : '';
                 const durStr = m.duration_seconds != null
                     ? `<span style="color:var(--teal);"><i class="fas fa-clock"></i> ${fmtDuration(m.duration_seconds)}</span>`
@@ -1269,7 +1274,7 @@ Do not share this link with patients — send them the Patient Link instead.`;
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                             <div>
                                 <div class="item-title">${m.room_name}</div>
-                                <div class="item-meta">${new Date(m.created_at).toLocaleString()}${expiryStr ? ' &nbsp;·&nbsp; ' + expiryStr : ''}${durStr ? ' &nbsp;·&nbsp; ' + durStr : ''}</div>
+                                <div class="item-meta">${fmtDate(m.created_at)}${expiryStr ? ' &nbsp;·&nbsp; ' + expiryStr : ''}${durStr ? ' &nbsp;·&nbsp; ' + durStr : ''}</div>
                             </div>
                             <div style="display:flex;gap:8px;flex-shrink:0;">
                                 <button class="join-host-btn" onclick="openInviteModal('${m.room_name}', '${m.password || ''}')" title="Generate patient consent link"><i class="fas fa-user-plus"></i></button>
@@ -1398,7 +1403,7 @@ Do not share this link with patients — send them the Patient Link instead.`;
         document.getElementById('cm-signed').textContent = c.signed_date || '—';
         document.getElementById('cm-room').textContent = c.room_name && c.room_name.trim() ? c.room_name : '—';
         document.getElementById('cm-signature').src = c.signature || '';
-        const ts = c.created_at ? new Date(c.created_at).toLocaleString() : '';
+        const ts = c.created_at ? fmtDate(c.created_at) : '';
         document.getElementById('cm-submitted').textContent = ts ? 'Submitted: ' + ts : '';
         const modal = document.getElementById('consent-modal');
         modal.style.display = 'flex';
@@ -1582,7 +1587,7 @@ Do not share this link with patients — send them the Patient Link instead.`;
                 return;
             }
             container.innerHTML = recent.map(m => {
-                const ts = m.created_at ? new Date(m.created_at).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}) : '';
+                const ts = m.created_at ? fmtDate(m.created_at, true) : '';
                 const roomUrl = `${window.location.origin}/?room=${encodeURIComponent(m.room_name)}`;
                 return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-md);gap:8px;">
                     <div style="min-width:0;">
@@ -2463,7 +2468,7 @@ function renderPatientCards(list) {
             <span title="Visits"><i class="fas fa-video"></i> ${p.visit_count||0}</span>
             <span title="Consents"><i class="fas fa-file-signature"></i> ${p.consent_count||0}</span>
         </div>
-        <div class="pt-card-last">${p.last_seen ? new Date(p.last_seen).toLocaleDateString() : '—'}</div>
+        <div class="pt-card-last">${p.last_seen ? fmtDate(p.last_seen) : '—'}</div>
     </div>`).join('');
 }
 
@@ -2504,23 +2509,33 @@ function renderPtTab(data) {
             </div>`;
     } else if (currentPtTab === 'consents') {
         el.innerHTML = data.consents?.length
-            ? data.consents.map(c => `<div class="pt-timeline-item"><i class="fas fa-file-signature" style="color:var(--teal);"></i><div><div>${esc(c.signature)}</div><div class="pt-timeline-date">${new Date(c.created_at).toLocaleString()}</div></div></div>`).join('')
+            ? data.consents.map(c => `<div class="pt-timeline-item"><i class="fas fa-file-signature" style="color:var(--teal);"></i><div><div>${esc(c.signature)}</div><div class="pt-timeline-date">${fmtDate(c.created_at)}</div></div></div>`).join('')
             : '<div class="appt-empty">No consents on file</div>';
     } else if (currentPtTab === 'visits') {
         el.innerHTML = data.visits?.length
-            ? data.visits.map(v => `<div class="pt-timeline-item"><i class="fas fa-video" style="color:var(--green);"></i><div><div>Room: ${esc(v.room_name)}</div>${v.soap_notes ? `<div style="font-size:12px;color:var(--text-2);">${esc(v.soap_notes.substring(0,120))}${v.soap_notes.length>120?'…':''}</div>` : ''}<div class="pt-timeline-date">${new Date(v.created_at).toLocaleString()}</div></div></div>`).join('')
+            ? data.visits.map(v => `<div class="pt-timeline-item"><i class="fas fa-video" style="color:var(--green);"></i><div><div>Room: ${esc(v.room_name)}</div>${v.soap_notes ? `<div style="font-size:12px;color:var(--text-2);">${esc(v.soap_notes.substring(0,120))}${v.soap_notes.length>120?'…':''}</div>` : ''}<div class="pt-timeline-date">${fmtDate(v.created_at)}</div></div></div>`).join('')
             : '<div class="appt-empty">No visit records</div>';
     } else if (currentPtTab === 'prescriptions') {
         el.innerHTML = data.prescriptions?.length
             ? data.prescriptions.map(rx => {
                 const meds = JSON.parse(rx.medications || '[]');
-                return `<div class="pt-timeline-item"><i class="fas fa-prescription-bottle-medical" style="color:#f59e0b;"></i><div><div>Provider: ${esc(rx.provider_name||'—')}</div><div style="font-size:12px;color:var(--text-2);">${meds.map(m=>esc(m.drug)).join(', ')||'No medications listed'}</div><div class="pt-timeline-date">${new Date(rx.created_at).toLocaleString()}</div></div></div>`;
+                return `<div class="pt-timeline-item"><i class="fas fa-prescription-bottle-medical" style="color:#f59e0b;"></i><div><div>Provider: ${esc(rx.provider_name||'—')}</div><div style="font-size:12px;color:var(--text-2);">${meds.map(m=>esc(m.drug)).join(', ')||'No medications listed'}</div><div class="pt-timeline-date">${fmtDate(rx.created_at)}</div></div></div>`;
             }).join('')
             : '<div class="appt-empty">No prescriptions on file</div>';
     }
 }
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Always display timestamps in Philippine Time (PHT = UTC+8)
+const SITE_TZ = 'Asia/Manila';
+function fmtDate(ts, dateOnly) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d)) return String(ts);
+  if (dateOnly) return d.toLocaleDateString('en-PH', { timeZone: SITE_TZ, month: 'short', day: 'numeric', year: 'numeric' });
+  return d.toLocaleString('en-PH', { timeZone: SITE_TZ, dateStyle: 'medium', timeStyle: 'short' });
+}
 
 /* Show meeting links after appointment creation */
 function showMeetingLinks(data, patientName, patientEmail) {
