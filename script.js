@@ -67,30 +67,32 @@ let isVideoOff = false;
 let isSharingScreen = false;
 let isChatOpen = false;
 
-// STUN + TURN servers for NAT traversal (TURN required for mobile/5G symmetric NAT)
-const iceServers = {
-  bundlePolicy: 'max-bundle',   // single transport for all tracks — fewer connections to maintain
-  iceCandidatePoolSize: 5,      // pre-gather candidates so reconnects are faster
+// STUN + TURN servers — loaded dynamically from /api/ice-servers (Twilio NTS
+// if configured, reliable public fallback otherwise).
+// Defaults cover the window before the fetch resolves.
+let iceServers = {
+  bundlePolicy: 'max-bundle',
+  iceCandidatePoolSize: 5,
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
-    {
-      urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
   ],
 };
+
+// Fetch fresh ICE / TURN credentials from the server. Returns a Promise so the
+// join flow can await it before the first RTCPeerConnection is created.
+let _iceReady = fetch('/api/ice-servers')
+  .then(r => r.ok ? r.json() : null)
+  .then(data => {
+    if (data && Array.isArray(data.iceServers) && data.iceServers.length) {
+      iceServers = {
+        bundlePolicy: 'max-bundle',
+        iceCandidatePoolSize: 5,
+        iceServers: data.iceServers,
+      };
+    }
+  })
+  .catch(() => {/* keep defaults */});
 
 // Auto-join if room parameter exists
 window.onload = () => {
@@ -106,10 +108,11 @@ window.onload = () => {
         document.getElementById('room-display-name').innerText = roomParam;
         document.getElementById('room-selection-container').style.display = 'none';
 
-        const proceed = () => {
+        const proceed = async () => {
+            await _iceReady; // ensure fresh TURN credentials are loaded before connecting
             if (isHostParam) {
                 isHost = true;
-                setTimeout(() => { socket.emit('create-room', roomParam, displayName); }, 200);
+                socket.emit('create-room', roomParam, displayName);
             } else if (urlJoinToken) {
                 // Patient came via consent form — token is the auth credential.
                 // Server skips password check when a valid token is supplied, so
@@ -464,10 +467,17 @@ async function showDeviceCheck(callback) {
         _dcStopResources();
         if (_dcStream) { _dcStream.getTracks().forEach(t => t.stop()); _dcStream = null; }
 
-        const constraints = {
-            video: videoId ? { deviceId: { exact: videoId } } : true,
-            audio: audioId ? { deviceId: { exact: audioId } } : true,
-        };
+        // iOS Safari / WKWebView: deviceId enumeration only works after permission
+        // is already granted. Use simpler constraints to avoid OverconstrainedError.
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+        const constraints = isIOS
+            ? { video: { facingMode: 'user' }, audio: true }
+            : {
+                video: videoId ? { deviceId: { exact: videoId } } : true,
+                audio: audioId ? { deviceId: { exact: audioId } } : true,
+              };
         try {
             _dcStream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch(e) {
