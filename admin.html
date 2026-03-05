@@ -1212,9 +1212,10 @@ Do not share this link with patients — send them the Patient Link instead.`;
             document.getElementById('stat-consents').textContent = consents.length;
             const today = new Date().toDateString();
             document.getElementById('stat-today').textContent = meetings.filter(m => {
-              const d = new Date(m.created_at);
-              const phStr = d.toLocaleDateString('en-PH', { timeZone: SITE_TZ });
-              const todayStr = new Date().toLocaleDateString('en-PH', { timeZone: SITE_TZ });
+              const raw = (typeof m.created_at === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(m.created_at)) ? m.created_at.replace(' ','T')+'Z' : m.created_at;
+              const d = new Date(raw);
+              const phStr = d.toLocaleDateString('en-US', { timeZone: SITE_TZ });
+              const todayStr = new Date().toLocaleDateString('en-US', { timeZone: SITE_TZ });
               return phStr === todayStr;
             }).length;
             const list = document.getElementById('overview-meetings-list');
@@ -2299,7 +2300,11 @@ function renderCalendar() {
         const isToday = today.getFullYear() === apptYear && today.getMonth() === apptMonth && today.getDate() === d;
         if (isToday) cell.classList.add('today');
         if (selectedDay === d) cell.classList.add('selected');
-        const dayAppts = allAppts.filter(a => new Date(a.scheduled_at).getDate() === d);
+        const dayAppts = allAppts.filter(a => {
+            const raw = (typeof a.scheduled_at === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(a.scheduled_at)) ? a.scheduled_at.replace(' ','T')+'Z' : a.scheduled_at;
+            const dt = new Date(raw);
+            return parseInt(dt.toLocaleDateString('en-US',{timeZone:SITE_TZ,day:'numeric'})) === d;
+        });
         cell.innerHTML = `<span class="cal-day-num">${d}</span>${dayAppts.length ? `<span class="cal-dot" title="${dayAppts.length} appt"></span>` : ''}`;
         cell.onclick = () => { selectedDay = d; renderCalendar(); filterApptByDay(d); };
         grid.appendChild(cell);
@@ -2308,7 +2313,11 @@ function renderCalendar() {
 
 function filterApptByDay(d) {
     const label = document.getElementById('appt-list-label');
-    const filtered = allAppts.filter(a => new Date(a.scheduled_at).getDate() === d);
+    const filtered = allAppts.filter(a => {
+        const raw = (typeof a.scheduled_at === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(a.scheduled_at)) ? a.scheduled_at.replace(' ','T')+'Z' : a.scheduled_at;
+        const dt = new Date(raw);
+        return parseInt(dt.toLocaleDateString('en-US',{timeZone:SITE_TZ,day:'numeric'})) === d;
+    });
     label.textContent = `${MONTH_NAMES[apptMonth]} ${d}, ${apptYear} — ${filtered.length} appointment${filtered.length !== 1 ? 's' : ''}`;
     renderApptList(filtered);
 }
@@ -2317,9 +2326,10 @@ function renderApptList(list) {
     const el = document.getElementById('appt-list');
     if (!list.length) { el.innerHTML = '<div class="appt-empty">No appointments for this period</div>'; return; }
     el.innerHTML = list.map(a => {
-        const dt = new Date(a.scheduled_at);
-        const timeStr = dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-        const dateStr = dt.toLocaleDateString([], {month:'short', day:'numeric'});
+        const rawSch = (typeof a.scheduled_at === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(a.scheduled_at)) ? a.scheduled_at.replace(' ','T')+'Z' : a.scheduled_at;
+        const dt = new Date(rawSch);
+        const timeStr = dt.toLocaleTimeString('en-US', { timeZone: SITE_TZ, hour:'2-digit', minute:'2-digit' });
+        const dateStr = dt.toLocaleDateString('en-US', { timeZone: SITE_TZ, month:'short', day:'numeric' });
         const statusColor = { scheduled:'var(--teal)', cancelled:'var(--red,#ef4444)', completed:'var(--green)', no_show:'#f59e0b' }[a.status] || 'var(--text-2)';
         const hostLink = a.room_name ? `${location.origin}/?room=${encodeURIComponent(a.room_name)}` : null;
         return `<div class="appt-card">
@@ -2538,10 +2548,17 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 let SITE_TZ = 'Asia/Manila';
 function fmtDate(ts, dateOnly) {
   if (!ts) return '';
-  const d = new Date(ts);
+  // SQLite stores datetimes as "2026-03-06 09:23:47" — no timezone marker.
+  // JavaScript treats that space-separated format as LOCAL time, shifting the
+  // date by the browser offset. Force it to be read as UTC by converting to
+  // ISO 8601 format with a Z suffix before parsing.
+  const normalized = (typeof ts === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(ts))
+    ? ts.replace(' ', 'T') + 'Z'
+    : ts;
+  const d = new Date(normalized);
   if (isNaN(d)) return String(ts);
-  if (dateOnly) return d.toLocaleDateString('en-PH', { timeZone: SITE_TZ, month: 'short', day: 'numeric', year: 'numeric' });
-  return d.toLocaleString('en-PH', { timeZone: SITE_TZ, dateStyle: 'medium', timeStyle: 'short' });
+  if (dateOnly) return d.toLocaleDateString('en-US', { timeZone: SITE_TZ, month: 'short', day: 'numeric', year: 'numeric' });
+  return d.toLocaleString('en-US', { timeZone: SITE_TZ, dateStyle: 'medium', timeStyle: 'short' });
 }
 
 /* Show meeting links after appointment creation */
