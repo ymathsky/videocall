@@ -642,38 +642,21 @@ app.get('/api/consents', requireAdmin, (req, res) => {
 // fresh Twilio NTS TURN credentials before every session. Falls back to
 // reliable public STUN when Twilio is not configured.
 app.get('/api/ice-servers', (req, res) => {
-  const stunOnly = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-  ];
-
-  db.all(`SELECT key, value FROM settings`, [], async (err, rows) => {
-    const s = {};
-    if (!err) rows.forEach(r => { s[r.key] = r.value; });
-
-    // Twilio Network Traversal Service: gives authenticated TURN valid for 24h
-    if (twilioClient && s.twilio_sid && s.twilio_token) {
-      try {
-        const client = twilioClient(s.twilio_sid, s.twilio_token);
-        const token  = await client.tokens.create();
-        return res.json({ iceServers: token.iceServers });
-      } catch (e) {
-        console.warn('[ICE] Twilio NTS failed, falling back to public STUN:', e.message);
-      }
-    }
-
-    // Fallback: Google STUN + metered TURN (best available without credentials)
-    return res.json({
-      iceServers: [
-        ...stunOnly,
-        { urls: 'turn:openrelay.metered.ca:80',              username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turn:openrelay.metered.ca:443',             username: 'openrelayproject', credential: 'openrelayproject' },
-        { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-      ]
-    });
+  // Comprehensive free TURN list. TCP/443 variants are critical for US 5G
+  // symmetric NAT where UDP is blocked by carrier deep-packet inspection.
+  res.json({
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+      // openrelay — all transports so the browser picks what penetrates the NAT
+      { urls: 'turn:openrelay.metered.ca:80',                 username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443',                username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp',  username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:80?transport=tcp',   username: 'openrelayproject', credential: 'openrelayproject' },
+    ]
   });
 });
 
