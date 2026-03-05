@@ -1849,7 +1849,11 @@ Do not share this link with patients — send them the Patient Link instead.`;
                     twilio_from:   document.getElementById('cfg-twilio-from').value.trim()
                 })
             });
-            if (!res.ok) throw new Error('Save failed');
+            if (!res.ok) {
+                let errMsg = `Server error ${res.status}`;
+                try { const d = await res.json(); errMsg = d.error || errMsg; } catch {}
+                throw new Error(errMsg);
+            }
             showToast('Settings saved successfully!');
             hint.textContent = 'Saved ✓';
             hint.style.color = 'var(--green)';
