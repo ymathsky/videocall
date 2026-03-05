@@ -641,23 +641,42 @@ app.get('/api/consents', requireAdmin, (req, res) => {
 // ICE servers — public endpoint (no auth) so the WebRTC client can fetch
 // fresh Twilio NTS TURN credentials before every session. Falls back to
 // reliable public STUN when Twilio is not configured.
-app.get('/api/ice-servers', (req, res) => {
-  // Comprehensive free TURN list. TCP/443 variants are critical for US 5G
-  // symmetric NAT where UDP is blocked by carrier deep-packet inspection.
-  res.json({
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun3.l.google.com:19302' },
-      { urls: 'stun:stun4.l.google.com:19302' },
-      // openrelay — all transports so the browser picks what penetrates the NAT
-      { urls: 'turn:openrelay.metered.ca:80',                 username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443',                username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443?transport=tcp',  username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:80?transport=tcp',   username: 'openrelayproject', credential: 'openrelayproject' },
-    ]
-  });
+app.get('/api/ice-servers', async (req, res) => {
+  const stunServers = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+  ];
+  const fallback = [
+    ...stunServers,
+    { urls: 'turn:openrelay.metered.ca:80',                username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',               username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:80?transport=tcp',  username: 'openrelayproject', credential: 'openrelayproject' },
+  ];
+
+  try {
+    const rows = await new Promise((resolve, reject) =>
+      db.all(`SELECT key, value FROM settings`, [], (err, r) => err ? reject(err) : resolve(r))
+    );
+    const s = {};
+    rows.forEach(r => { s[r.key] = r.value; });
+
+    if (s.metered_app && s.metered_key) {
+      // Fetch fresh authenticated TURN credentials from Metered.ca
+      const url = `https://${s.metered_app}.metered.live/api/v1/turn/credentials?apiKey=${s.metered_key}`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const iceServers = await response.json();
+        return res.json({ iceServers: [...stunServers, ...iceServers] });
+      }
+      console.warn('[ICE] Metered fetch failed, falling back to public TURN');
+    }
+  } catch(e) {
+    console.warn('[ICE] Error fetching Metered credentials:', e.message);
+  }
+
+  res.json({ iceServers: fallback });
 });
 
 // Settings — public read, admin write
@@ -671,7 +690,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', requireAdmin, (req, res) => {
-  const allowed = ['company_name', 'tagline', 'timezone', 'contact_email', 'contact_phone', 'company_logo', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'twilio_sid', 'twilio_token', 'twilio_from'];
+  const allowed = ['company_name', 'tagline', 'timezone', 'contact_email', 'contact_phone', 'company_logo', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'twilio_sid', 'twilio_token', 'twilio_from', 'metered_app', 'metered_key'];
   const updates = Object.entries(req.body).filter(([k]) => allowed.includes(k));
   if (!updates.length) return res.status(400).json({ error: 'No valid settings provided' });
   const tasks = updates.map(([k, v]) =>

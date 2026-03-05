@@ -475,6 +475,22 @@
                     </div>
                 </div>
 
+                <!-- TURN Server (Metered.ca) -->
+                <div class="settings-grid" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+                    <div class="form-group full" style="margin-bottom:6px;">
+                        <label style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px;"><i class="fas fa-network-wired" style="color:var(--teal);"></i> TURN Server (Metered.ca) — Fix Video on US Mobile / 5G</label>
+                        <p style="font-size:12px;color:var(--text-2);margin:4px 0 0;">Required for video calls on US 5G carrier networks (T-Mobile, Verizon, AT&T). <a href="https://dashboard.metered.ca" target="_blank" style="color:var(--teal);">Get free credentials at metered.ca</a> → TURN Server → API Key. App name is the subdomain of your Metered dashboard URL.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-metered-app">Metered App Name</label>
+                        <input type="text" id="cfg-metered-app" placeholder="vmp" autocomplete="off" />
+                    </div>
+                    <div class="form-group">
+                        <label for="cfg-metered-key">Metered API Key</label>
+                        <input type="password" id="cfg-metered-key" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="new-password" />
+                    </div>
+                </div>
+
                 <div class="settings-save-row" style="flex-wrap:wrap;gap:10px;">
                     <button id="save-settings-btn" class="btn-primary" style="gap:8px;">
                         <i class="fas fa-floppy-disk"></i> Save Settings
@@ -1797,6 +1813,8 @@ Do not share this link with patients — send them the Patient Link instead.`;
             if (s.twilio_sid)   document.getElementById('cfg-twilio-sid').value   = s.twilio_sid;
             if (s.twilio_token) document.getElementById('cfg-twilio-token').value = s.twilio_token;
             if (s.twilio_from)  document.getElementById('cfg-twilio-from').value  = s.twilio_from;
+            if (s.metered_app)  document.getElementById('cfg-metered-app').value  = s.metered_app;
+            if (s.metered_key)  document.getElementById('cfg-metered-key').value  = s.metered_key;
         } catch(e) { console.error('loadSettings:', e); }
     }
 
@@ -1847,7 +1865,9 @@ Do not share this link with patients — send them the Patient Link instead.`;
                     smtp_from:     document.getElementById('cfg-smtp-from').value.trim(),
                     twilio_sid:    document.getElementById('cfg-twilio-sid').value.trim(),
                     twilio_token:  document.getElementById('cfg-twilio-token').value.trim(),
-                    twilio_from:   document.getElementById('cfg-twilio-from').value.trim()
+                    twilio_from:   document.getElementById('cfg-twilio-from').value.trim(),
+                    metered_app:   document.getElementById('cfg-metered-app').value.trim(),
+                    metered_key:   document.getElementById('cfg-metered-key').value.trim()
                 })
             });
             if (!res.ok) {
