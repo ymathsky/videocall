@@ -662,20 +662,38 @@ app.get('/api/ice-servers', async (req, res) => {
     const s = {};
     rows.forEach(r => { s[r.key] = r.value; });
 
-    if (s.metered_app && s.metered_key) {
-      // Fetch fresh authenticated TURN credentials from Metered.ca
-      const url = `https://${s.metered_app}.metered.live/api/v1/turn/credentials?apiKey=${s.metered_key}`;
-      const response = await fetch(url);
-      if (response.ok) {
-        const iceServers = await response.json();
-        return res.json({ iceServers: [...stunServers, ...iceServers] });
+    // 1st priority: Twilio NTS (pay-per-use, most reliable on US 5G)
+    if (twilioClient && s.twilio_sid && s.twilio_token) {
+      try {
+        const client = twilioClient(s.twilio_sid, s.twilio_token);
+        const token  = await client.tokens.create();
+        console.log('[ICE] Using Twilio NTS TURN credentials');
+        return res.json({ iceServers: token.iceServers });
+      } catch(e) {
+        console.warn('[ICE] Twilio NTS failed:', e.message);
       }
-      console.warn('[ICE] Metered fetch failed, falling back to public TURN');
+    }
+
+    // 2nd priority: Metered.ca (free 500MB/mo trial)
+    if (s.metered_app && s.metered_key) {
+      try {
+        const url = `https://${s.metered_app}.metered.live/api/v1/turn/credentials?apiKey=${s.metered_key}`;
+        const response = await fetch(url);
+        if (response.ok) {
+          const iceServers = await response.json();
+          console.log('[ICE] Using Metered.ca TURN credentials');
+          return res.json({ iceServers: [...stunServers, ...iceServers] });
+        }
+      } catch(e) {
+        console.warn('[ICE] Metered fetch failed:', e.message);
+      }
     }
   } catch(e) {
-    console.warn('[ICE] Error fetching Metered credentials:', e.message);
+    console.warn('[ICE] Settings fetch error:', e.message);
   }
 
+  // Fallback: free public TURN (may fail on US 5G symmetric NAT)
+  console.log('[ICE] Using public fallback TURN servers');
   res.json({ iceServers: fallback });
 });
 
