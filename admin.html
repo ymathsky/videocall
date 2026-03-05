@@ -1780,7 +1780,7 @@ Do not share this link with patients — send them the Patient Link instead.`;
                 document.title = s.company_name + ' — Admin';
             }
             if (s.tagline)       document.getElementById('cfg-tagline').value = s.tagline;
-            if (s.timezone)      document.getElementById('cfg-timezone').value = s.timezone;
+            if (s.timezone)    { document.getElementById('cfg-timezone').value = s.timezone; SITE_TZ = s.timezone; }
             if (s.contact_email) { document.getElementById('cfg-email').value = s.contact_email; siteContactEmail = s.contact_email; }
             if (s.contact_phone) { document.getElementById('cfg-phone').value = s.contact_phone; siteContactPhone = s.contact_phone; }
             if (s.company_logo) {
@@ -1853,6 +1853,9 @@ Do not share this link with patients — send them the Patient Link instead.`;
             showToast('Settings saved successfully!');
             hint.textContent = 'Saved ✓';
             hint.style.color = 'var(--green)';
+            // Apply timezone immediately so all displayed dates update at once
+            const tz = document.getElementById('cfg-timezone').value;
+            if (tz) SITE_TZ = tz;
             const name = document.getElementById('cfg-company').value.trim();
             if (name) {
                 document.querySelectorAll('.dynamic-company-name').forEach(el => el.textContent = name);
@@ -2527,8 +2530,8 @@ function renderPtTab(data) {
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// Always display timestamps in Philippine Time (PHT = UTC+8)
-const SITE_TZ = 'Asia/Manila';
+// Always display timestamps in the configured timezone (default: Asia/Manila)
+let SITE_TZ = 'Asia/Manila';
 function fmtDate(ts, dateOnly) {
   if (!ts) return '';
   const d = new Date(ts);
