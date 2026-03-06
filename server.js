@@ -1501,8 +1501,40 @@ io.on('connection', (socket) => {
 
     // ── Room existence ─────────────────────────────────────────────────────────
     const room = activeRooms[roomName];
+
+    // If the host hasn't joined yet, validate the token against the DB and put
+    // the patient in the pre-queue. notifyWaiting() will flush them to the host
+    // once the host opens their link.
     if (!room) {
-      socket.emit('join-error', 'Room does not exist.');
+      if (!joinToken) {
+        socket.emit('join-error', 'The provider has not yet opened this room. Please wait and try again, or use your invitation link.');
+        return;
+      }
+      db.get(`SELECT * FROM meetings WHERE room_name = ?`, [roomName], (err, meeting) => {
+        if (err || !meeting) {
+          socket.emit('join-error', 'Room does not exist.');
+          return;
+        }
+        if (meeting.expires_at && new Date(meeting.expires_at) < new Date()) {
+          socket.emit('join-error', 'This meeting has expired.');
+          return;
+        }
+        db.get(
+          `SELECT * FROM join_tokens WHERE token = ? AND room_name = ? AND used = 0`,
+          [joinToken, roomName],
+          (err2, row) => {
+            if (err2 || !row) {
+              socket.emit('join-error', 'Your session token is invalid or has already been used. Please complete the consent form again.');
+              return;
+            }
+            // Token valid — queue the patient; host will be notified when they join
+            pendingTokens.set(socket.id, joinToken);
+            addToQueue(roomName, socket.id, socket.participantName);
+            socket.emit('waiting-room');
+            console.log(`Patient ${socket.id} pre-queued for room ${roomName} (host not yet present)`);
+          }
+        );
+      });
       return;
     }
 
