@@ -865,24 +865,32 @@ function createPeerConnection(socketId, isInitiator) {
 
     // Auto-reconnect when ICE drops
     let _reconnectTimer = null;
+    const _doIceRestart = () => {
+        pc.createOffer({ iceRestart: true })
+          .then(offer => { pc.setLocalDescription(offer); socket.emit('offer', offer, roomName, socketId); })
+          .catch(() => {});
+    };
     pc.oniceconnectionstatechange = () => {
         const state = pc.iceConnectionState;
         if (state === 'disconnected') {
             showReconnecting(socketId);
             _reconnectTimer = setTimeout(() => {
-                if (!['connected', 'completed'].includes(pc.iceConnectionState) && isInitiator) {
-                    pc.createOffer({ iceRestart: true })
-                      .then(offer => { pc.setLocalDescription(offer); socket.emit('offer', offer, roomName, socketId); })
-                      .catch(() => {});
+                if (['connected', 'completed'].includes(pc.iceConnectionState)) return;
+                if (isInitiator) {
+                    _doIceRestart();
+                } else {
+                    // Ask the initiator to restart ICE
+                    socket.emit('ice-restart-request', roomName, socketId);
                 }
             }, 2500);
         } else if (state === 'failed') {
             clearTimeout(_reconnectTimer);
             showReconnecting(socketId);
             if (isInitiator) {
-                pc.createOffer({ iceRestart: true })
-                  .then(offer => { pc.setLocalDescription(offer); socket.emit('offer', offer, roomName, socketId); })
-                  .catch(() => {});
+                _doIceRestart();
+            } else {
+                // Non-initiator: ask the initiator to send a new offer
+                socket.emit('ice-restart-request', roomName, socketId);
             }
         } else if (state === 'connected' || state === 'completed') {
             clearTimeout(_reconnectTimer);
@@ -892,6 +900,21 @@ function createPeerConnection(socketId, isInitiator) {
             hideReconnecting(socketId);
         }
     };
+
+    // Initiator: peer is asking us to restart ICE
+    socket.on('ice-restart-request', (fromSocketId) => {
+        if (fromSocketId !== socketId) return; // not for this peer connection
+        if (!isInitiator) return;
+        const activePc = peers[socketId];
+        if (activePc && !['closed', 'failed'].includes(activePc.iceConnectionState)) {
+            _doIceRestart();
+        } else if (activePc) {
+            // Connection is dead — rebuild from scratch
+            activePc.close();
+            delete peers[socketId];
+            createPeerConnection(socketId, true);
+        }
+    });
 
     if (localStream) {
         localStream.getTracks().forEach(track => pc.addTrack(track, localStream));

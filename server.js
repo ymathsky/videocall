@@ -1626,6 +1626,11 @@ io.on('connection', (socket) => {
     socket.broadcast.to(roomName).emit('ready', socket.id); // Send user ID to others
   });
 
+  // ICE restart relay — non-initiator asks initiator to resend offer
+  socket.on('ice-restart-request', (roomName, targetSocketId) => {
+    socket.to(targetSocketId).emit('ice-restart-request', socket.id);
+  });
+
   socket.on('candidate', (candidate, roomName, targetId) => {
     console.log("candidate", socket.id, targetId);
     socket.to(targetId).emit('candidate', candidate, socket.id);
