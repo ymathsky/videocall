@@ -198,6 +198,7 @@
                     <label>Meeting Topic / Room Name</label>
                     <input type="text" id="room-name" placeholder="e.g. Follow-up Consultation â€” Dr. Smith" />
                 </div>                <div class="form-group">
+                    <div id="pwd-row">
                     <label>Meeting Password <span style="color:var(--text-3);font-weight:400;">(auto-generated if left blank)</span></label>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <input type="text" id="room-password" placeholder="Leave blank to auto-generate" style="flex:1;font-family:monospace;" />
@@ -206,6 +207,7 @@
                         </button>
                     </div>
                     <div style="font-size:11px;color:var(--text-3);margin-top:4px;"><i class="fas fa-lock" style="margin-right:4px;"></i>Password is embedded in the patient link automatically.</div>
+                    </div>
                 </div>                <button id="create-btn" class="btn-primary" style="width:100%;justify-content:center;padding:12px;">
                     <i class="fas fa-link"></i> Generate Meeting Link
                 </button>
@@ -226,7 +228,7 @@
                             </div>
                         </div>
                         <!-- Meeting password — share separately with the patient -->
-                        <div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:var(--r-md);padding:14px 16px;">
+                        <div id="result-pwd-section" style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.25);border-radius:var(--r-md);padding:14px 16px;">
                             <div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:var(--amber,#f59e0b);margin-bottom:6px;"><i class="fas fa-key" style="margin-right:6px;"></i>MEETING PASSWORD <span style="color:var(--text-3);font-weight:400;">(share this with the patient separately)</span></div>
                             <div id="result-password" style="font-size:18px;font-weight:700;letter-spacing:.15em;color:var(--text);font-family:monospace;margin-bottom:10px;"></div>
                             <div class="inline-actions">
@@ -407,6 +409,17 @@
                             <option value="Asia/Tokyo">Asia/Tokyo (UTC+9)</option>
                             <option value="Australia/Sydney">Australia/Sydney (UTC+10/+11)</option>
                         </select>
+                    </div>
+                    <div class="form-group full">
+                        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                            <div style="position:relative;width:40px;height:22px;flex-shrink:0;">
+                                <input type="checkbox" id="cfg-require-pwd" style="opacity:0;width:0;height:0;position:absolute;" />
+                                <span id="cfg-require-pwd-track" onclick="document.getElementById('cfg-require-pwd').click()" style="position:absolute;inset:0;background:var(--border);border-radius:11px;cursor:pointer;transition:background .2s;"></span>
+                                <span id="cfg-require-pwd-thumb" style="position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s;pointer-events:none;"></span>
+                            </div>
+                            <span style="font-size:13px;font-weight:600;">Require password for video meetings</span>
+                        </label>
+                        <p style="font-size:12px;color:var(--text-2);margin:4px 0 0;">When enabled, each meeting is protected by a password. Disable if you rely solely on the consent token link for access control.</p>
                     </div>
                     <div class="form-group">
                         <label for="cfg-email">Contact Email</label>
@@ -1142,15 +1155,32 @@
         document.getElementById('room-password').value = generatePassword();
     });
 
+    // Toggle UI helper for the password-required switch
+    function updatePwdToggleUI(checked) {
+        const track = document.getElementById('cfg-require-pwd-track');
+        const thumb = document.getElementById('cfg-require-pwd-thumb');
+        if (track) track.style.background = checked ? 'var(--teal)' : 'var(--border)';
+        if (thumb) thumb.style.transform  = checked ? 'translateX(18px)' : 'none';
+    }
+    function togglePasswordRow(show) {
+        const row = document.getElementById('pwd-row');
+        if (row) row.style.display = show ? '' : 'none';
+    }
+    document.getElementById('cfg-require-pwd').addEventListener('change', function() {
+        updatePwdToggleUI(this.checked);
+        togglePasswordRow(this.checked);
+    });
+
     createBtn.addEventListener('click', async () => {
         let name = roomInput.value.trim();
         if (!name) name = 'Consult-' + Math.random().toString(36).substring(2, 8).toUpperCase();
         else name = name.replace(/[^a-zA-Z0-9\-_]/g, '-');
 
-        // Auto-generate password if blank
+        // Only use password if the setting is enabled
+        const requirePwd = document.getElementById('cfg-require-pwd').checked;
         const pwdInput = document.getElementById('room-password');
-        if (!pwdInput.value.trim()) pwdInput.value = generatePassword();
-        const password = pwdInput.value.trim();
+        if (requirePwd && !pwdInput.value.trim()) pwdInput.value = generatePassword();
+        const password = requirePwd ? pwdInput.value.trim() : '';
 
         try {
             const res = await apiFetch('/api/meetings', {
@@ -1166,6 +1196,7 @@
         const pLink      = window.location.origin + '/consent?room=' + encodeURIComponent(name);
         patientLink.textContent = pLink;
         document.getElementById('result-password').textContent = password;
+        document.getElementById('result-pwd-section').style.display = requirePwd ? '' : 'none';
         hostLink.textContent    = directLink;
         resultArea.style.display = 'block';
         joinBtn.onclick = () => window.open(directLink, '_blank');
@@ -1815,6 +1846,11 @@ Do not share this link with patients — send them the Patient Link instead.`;
             if (s.twilio_from)  document.getElementById('cfg-twilio-from').value  = s.twilio_from;
             if (s.metered_app)  document.getElementById('cfg-metered-app').value  = s.metered_app;
             if (s.metered_key)  document.getElementById('cfg-metered-key').value  = s.metered_key;
+            const requirePwd = s.require_meeting_password !== '0';
+            const cb = document.getElementById('cfg-require-pwd');
+            cb.checked = requirePwd;
+            updatePwdToggleUI(requirePwd);
+            togglePasswordRow(requirePwd);
         } catch(e) { console.error('loadSettings:', e); }
     }
 
@@ -1867,7 +1903,8 @@ Do not share this link with patients — send them the Patient Link instead.`;
                     twilio_token:  document.getElementById('cfg-twilio-token').value.trim(),
                     twilio_from:   document.getElementById('cfg-twilio-from').value.trim(),
                     metered_app:   document.getElementById('cfg-metered-app').value.trim(),
-                    metered_key:   document.getElementById('cfg-metered-key').value.trim()
+                    metered_key:   document.getElementById('cfg-metered-key').value.trim(),
+                    require_meeting_password: document.getElementById('cfg-require-pwd').checked ? '1' : '0'
                 })
             });
             if (!res.ok) {
@@ -2463,6 +2500,10 @@ function selectDuration(btn) {
     btn.classList.add('active');
     document.getElementById('am-duration').value = btn.dataset.val;
 }
+
+
+
+
 
 function updateInviteToggle(cb) {
     const track = document.getElementById('am-invite-track');

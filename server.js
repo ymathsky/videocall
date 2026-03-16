@@ -471,17 +471,26 @@ app.get('/profile/:id', (req, res) => {
 app.post('/api/meetings', requireAdmin, (req, res) => {
   const { roomName, password } = req.body;
   if (!roomName)  return res.status(400).json({ error: 'Room name is required' });
-  if (!password)  return res.status(400).json({ error: 'Password is required' });
 
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  // Check if passwords are required by the site setting
+  db.all(`SELECT key, value FROM settings`, [], (err, rows) => {
+    const s = {};
+    if (rows) rows.forEach(r => { s[r.key] = r.value; });
+    const requirePwd = s.require_meeting_password !== '0';
+    if (requirePwd && !password)
+      return res.status(400).json({ error: 'Password is required' });
 
-  db.run(`INSERT INTO meetings (room_name, password, expires_at) VALUES (?, ?, ?)`,
-    [roomName, password, expiresAt],
-    function(err) {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ id: this.lastID, roomName, password, expiresAt, message: 'Meeting saved successfully' });
-    }
-  );
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const finalPwd  = requirePwd ? password : '';
+
+    db.run(`INSERT INTO meetings (room_name, password, expires_at) VALUES (?, ?, ?)`,
+      [roomName, finalPwd, expiresAt],
+      function(err2) {
+        if (err2) return res.status(500).json({ error: err2.message });
+        res.json({ id: this.lastID, roomName, password: finalPwd, expiresAt, message: 'Meeting saved successfully' });
+      }
+    );
+  });
 });
 
 app.get('/api/meetings', requireAdmin, (req, res) => {
@@ -708,7 +717,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', requireAdmin, (req, res) => {
-  const allowed = ['company_name', 'tagline', 'timezone', 'contact_email', 'contact_phone', 'company_logo', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'twilio_sid', 'twilio_token', 'twilio_from', 'metered_app', 'metered_key'];
+  const allowed = ['company_name', 'tagline', 'timezone', 'contact_email', 'contact_phone', 'company_logo', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'twilio_sid', 'twilio_token', 'twilio_from', 'metered_app', 'metered_key', 'require_meeting_password'];
   const updates = Object.entries(req.body).filter(([k]) => allowed.includes(k));
   if (!updates.length) return res.status(400).json({ error: 'No valid settings provided' });
   const tasks = updates.map(([k, v]) =>
@@ -1404,6 +1413,12 @@ function addToQueue(roomName, socketId, name) {
     waitingQueues[roomName].push({ socketId, name, joinedAt: Date.now() });
   }
   broadcastQueue(roomName);
+  // If host is already present (race condition: host joined while DB token query was in flight),
+  // send the admit-notification event so the host sees the Admit/Deny card.
+  const room = activeRooms[roomName];
+  if (room && room.hostId) {
+    io.to(room.hostId).emit('guest-waiting', { socketId, roomName, name });
+  }
 }
 
 function removeFromQueue(roomName, socketId) {
