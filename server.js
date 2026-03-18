@@ -1628,11 +1628,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('deny-guest', (guestSocketId) => {
+  socket.on('deny-guest', (guestSocketId, reason) => {
     const guestSocket = io.sockets.sockets.get(guestSocketId);
     if (guestSocket) {
       pendingTokens.delete(guestSocketId);
-      guestSocket.emit('denied');
+      // Sanitise the reason — strip any HTML tags to prevent XSS
+      const safeReason = typeof reason === 'string'
+        ? reason.replace(/<[^>]*>/g, '').trim().slice(0, 200)
+        : '';
+      guestSocket.emit('denied', safeReason);
       for (const [rn] of Object.entries(waitingQueues)) { removeFromQueue(rn, guestSocketId); }
     }
   });

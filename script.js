@@ -693,6 +693,8 @@ function playJoinChime() {
 }
 
 socket.on('guest-waiting', (data) => {
+    // Deduplicate — don't show a second card if one is already visible for this socket
+    if (document.getElementById(`notif-${data.socketId}`)) return;
     playJoinChime();
     const arrivedAt = Date.now();
     const timeStr = new Date(arrivedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -711,9 +713,29 @@ socket.on('guest-waiting', (data) => {
                 </div>
             </div>
         </div>
-        <div class="notification-actions">
+        <div class="notification-actions" id="notif-actions-${data.socketId}">
             <button class="btn-admit" onclick="admitGuest('${data.socketId}', '${data.roomName}')">Admit</button>
-            <button class="btn-deny" onclick="denyGuest('${data.socketId}')">Deny</button>
+            <button class="btn-deny"  onclick="showDenyForm('${data.socketId}')">Deny</button>
+        </div>
+        <div id="notif-deny-form-${data.socketId}" style="display:none;margin-top:8px;">
+            <select id="notif-deny-reason-${data.socketId}"
+                style="width:100%;padding:6px 8px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#fff;font-size:12px;margin-bottom:6px;">
+                <option value="">Select a reason (optional)</option>
+                <option value="Please call back in 15 minutes.">Call back in 15 minutes</option>
+                <option value="Please call back in 30 minutes.">Call back in 30 minutes</option>
+                <option value="Your appointment slot has passed. Please reschedule.">Slot has passed — reschedule</option>
+                <option value="The provider is currently with another patient.">Provider with another patient</option>
+                <option value="Please contact our office to reschedule.">Contact office to reschedule</option>
+                <option value="custom">Custom message…</option>
+            </select>
+            <input id="notif-deny-custom-${data.socketId}" type="text" placeholder="Type custom message…"
+                maxlength="160"
+                style="display:none;width:100%;box-sizing:border-box;padding:6px 8px;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#fff;font-size:12px;margin-bottom:6px;"
+            />
+            <div style="display:flex;gap:6px;">
+                <button class="btn-deny" style="flex:1;" onclick="confirmDeny('${data.socketId}')">Send &amp; Deny</button>
+                <button onclick="hideDenyForm('${data.socketId}')" style="flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.7);border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;">Cancel</button>
+            </div>
         </div>
     `;
     hostNotifications.appendChild(notification);
@@ -749,15 +771,67 @@ window.admitGuest = function(socketId, roomName) {
     document.getElementById(`notif-${socketId}`).remove();
 };
 
+window.showDenyForm = function(socketId) {
+    document.getElementById(`notif-actions-${socketId}`).style.display = 'none';
+    document.getElementById(`notif-deny-form-${socketId}`).style.display = 'block';
+    const sel = document.getElementById(`notif-deny-reason-${socketId}`);
+    if (sel) sel.onchange = () => {
+        const custom = document.getElementById(`notif-deny-custom-${socketId}`);
+        if (custom) custom.style.display = sel.value === 'custom' ? 'block' : 'none';
+    };
+};
+
+window.hideDenyForm = function(socketId) {
+    document.getElementById(`notif-deny-form-${socketId}`).style.display = 'none';
+    document.getElementById(`notif-actions-${socketId}`).style.display = 'flex';
+};
+
+window.confirmDeny = function(socketId) {
+    const sel    = document.getElementById(`notif-deny-reason-${socketId}`);
+    const custom = document.getElementById(`notif-deny-custom-${socketId}`);
+    let reason = sel ? sel.value : '';
+    if (reason === 'custom') reason = custom ? custom.value.trim() : '';
+    socket.emit('deny-guest', socketId, reason || '');
+    const card = document.getElementById(`notif-${socketId}`);
+    if (card) card.remove();
+};
+
 window.denyGuest = function(socketId) {
-    socket.emit('deny-guest', socketId);
+    socket.emit('deny-guest', socketId, '');
     document.getElementById(`notif-${socketId}`).remove();
 };
 
-socket.on('denied', () => {
+socket.on('denied', (reason) => {
     stopWaitTimer();
-    alert('The host denied your request to join.');
-    location.reload();
+    const icon  = document.getElementById('waiting-icon');
+    const title = document.getElementById('waiting-title');
+    const msg   = document.getElementById('waiting-message');
+    const sub   = document.getElementById('waiting-sub');
+    const loader = waitingRoomOverlay ? waitingRoomOverlay.querySelector('.loader') : null;
+
+    if (icon)  icon.className = 'fas fa-ban';
+    if (icon)  icon.style.color = '#ef4444';
+    if (title) title.textContent = 'Access Denied';
+    if (msg)   msg.innerHTML = 'The provider denied your request to join.';
+    if (reason) {
+        if (sub) { sub.style.display = 'block'; sub.textContent = reason; }
+    } else {
+        if (sub) sub.style.display = 'none';
+    }
+    if (loader) loader.style.display = 'none';
+    waitingRoomOverlay.style = 'display:flex';
+
+    // Return home button
+    const existing = document.getElementById('denied-home-btn');
+    if (!existing) {
+        const btn = document.createElement('button');
+        btn.id = 'denied-home-btn';
+        btn.className = 'btn-primary';
+        btn.style.cssText = 'width:100%;justify-content:center;padding:11px;font-size:14px;margin-top:12px;';
+        btn.innerHTML = '<i class="fas fa-house"></i> Return to Home';
+        btn.onclick = () => { location.href = '/'; };
+        waitingRoomOverlay.querySelector('.overlay-content').appendChild(btn);
+    }
 });
 
 socket.on('admitted', () => {

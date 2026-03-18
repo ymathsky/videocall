@@ -20,6 +20,14 @@
         @media (max-width: 860px) {
             .create-grid { grid-template-columns: 1fr; }
         }
+        .meeting-filter-btn {
+            padding: 4px 12px; font-size: 12px; font-weight: 600;
+            border: 1px solid var(--border); border-radius: 20px;
+            background: var(--bg-elevated); color: var(--text-2);
+            cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+        }
+        .meeting-filter-btn:hover  { background: var(--bg-card); color: var(--text); }
+        .meeting-filter-btn.active { background: var(--teal); color: #fff; border-color: var(--teal); }
     </style>
 </head>
 <body>
@@ -342,6 +350,14 @@
                 </div>
             </div>
             <div class="panel-card">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;">
+                    <span style="font-size:12px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Filter:</span>
+                    <button class="meeting-filter-btn active" data-filter="all"    onclick="filterMeetings(this)">All</button>
+                    <button class="meeting-filter-btn"        data-filter="not-started" onclick="filterMeetings(this)">Not Started</button>
+                    <button class="meeting-filter-btn"        data-filter="in-progress" onclick="filterMeetings(this)">In Progress</button>
+                    <button class="meeting-filter-btn"        data-filter="completed"   onclick="filterMeetings(this)">Completed</button>
+                    <button class="meeting-filter-btn"        data-filter="expired"     onclick="filterMeetings(this)">Expired</button>
+                </div>
                 <div id="meetings-list" class="data-list"></div>
             </div>
         </div>
@@ -1281,21 +1297,50 @@ Do not share this link with patients — send them the Patient Link instead.`;
         } catch(e) { console.error(e); }
     }
 
+    function getMeetingStatus(m) {
+        const now    = new Date();
+        const expiry = m.expires_at ? new Date(m.expires_at) : null;
+        if (m.ended_at || (m.duration_seconds != null && m.duration_seconds > 0)) return 'completed';
+        if (m.started_at) return 'in-progress';
+        if (expiry && expiry < now) return 'expired';
+        return 'not-started';
+    }
+
+    const STATUS_BADGE = {
+        'completed':   { label: 'Completed',   color: '#22c55e', bg: 'rgba(34,197,94,.12)',  icon: 'fa-circle-check' },
+        'in-progress': { label: 'In Progress', color: '#f59e0b', bg: 'rgba(245,158,11,.12)', icon: 'fa-circle-dot' },
+        'expired':     { label: 'Expired',     color: '#ef4444', bg: 'rgba(239,68,68,.12)',  icon: 'fa-circle-xmark' },
+        'not-started': { label: 'Not Started', color: '#94a3b8', bg: 'rgba(148,163,184,.10)',icon: 'fa-circle' },
+    };
+
+    window._allMeetings = [];
+
+    function filterMeetings(btn) {
+        document.querySelectorAll('.meeting-filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        document.querySelectorAll('#meetings-list .meeting-item-card').forEach(card => {
+            card.style.display = (filter === 'all' || card.dataset.status === filter) ? '' : 'none';
+        });
+    }
+
     async function loadMeetings() {
         try {
             const meetings = await (await apiFetch('/api/meetings')).json();
+            window._allMeetings = meetings;
             const list = document.getElementById('meetings-list');
             if (!meetings.length) { list.innerHTML = '<div class="muted">No meetings yet.</div>'; return; }
             list.innerHTML = meetings.map((m, i) => {
                 const expiry = m.expires_at ? new Date(m.expires_at) : null;
                 const isExpired = expiry && expiry < new Date();
-                const expiryStr = expiry
-                    ? (isExpired ? '<span style="color:var(--red)">Expired</span>' : 'Expires ' + fmtDate(expiry))
-                    : '';
+                const status    = getMeetingStatus(m);
+                const badge     = STATUS_BADGE[status];
+                const statusBadge = `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:20px;background:${badge.bg};color:${badge.color};vertical-align:middle;margin-left:6px;"><i class="fas ${badge.icon}"></i> ${badge.label}</span>`;
+                const expiryStr = expiry && !isExpired ? 'Expires ' + fmtDate(expiry) : '';
                 const durStr = m.duration_seconds != null
                     ? `<span style="color:var(--teal);"><i class="fas fa-clock"></i> ${fmtDuration(m.duration_seconds)}</span>`
-                    : (m.started_at ? '<span style="color:var(--text-2);font-size:11px;">In progress</span>' : '');
-                const summaryId   = `summary-${i}`;
+                    : (m.started_at && !m.ended_at ? '<span style="color:#f59e0b;font-size:11px;"><i class="fas fa-circle-dot"></i> Live</span>' : '');
+                const summaryId    = `summary-${i}`;
                 const transcriptId = `transcript-${i}`;
                 const notesId      = `notes-${i}`;
                 const summaryBlock = m.summary ? `
@@ -1317,11 +1362,11 @@ Do not share this link with patients — send them the Patient Link instead.`;
                     </div>
                     <div class="meeting-summary-body" id="${notesId}" style="display:none;">${renderSoapNotes(m.soap_notes)}</div>` : '';
                 return `
-                <div class="data-item meeting-item-card">
+                <div class="data-item meeting-item-card" data-status="${status}">
                     <div style="width:100%;">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
                             <div>
-                                <div class="item-title">${m.room_name}</div>
+                                <div class="item-title">${m.room_name}${statusBadge}</div>
                                 <div class="item-meta">${fmtDate(m.created_at)}${expiryStr ? ' &nbsp;·&nbsp; ' + expiryStr : ''}${durStr ? ' &nbsp;·&nbsp; ' + durStr : ''}</div>
                             </div>
                             <div style="display:flex;gap:8px;flex-shrink:0;">
