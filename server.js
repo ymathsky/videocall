@@ -1447,6 +1447,38 @@ setInterval(() => {
   });
 }, 10 * 60 * 1000).unref();
 
+// ── Daily DB cleanup ─────────────────────────────────────────────────────────
+// Removes expired, never-started meetings older than 7 days (no call history = safe to delete)
+// Also clears old join tokens and aged-out chat messages.
+setInterval(() => {
+  db.run(
+    `DELETE FROM meetings
+     WHERE expires_at IS NOT NULL
+       AND expires_at < datetime('now', '-7 days')
+       AND (started_at IS NULL OR started_at = '')
+       AND (soap_notes IS NULL OR soap_notes = '')
+       AND (summary IS NULL OR summary = '')`,
+    [], function(err) {
+      if (!err && this.changes > 0)
+        console.log(`[Cleanup] Removed ${this.changes} expired unused meeting(s).`);
+    }
+  );
+  db.run(
+    `DELETE FROM join_tokens WHERE created_at < datetime('now', '-7 days')`,
+    [], function(err) {
+      if (!err && this.changes > 0)
+        console.log(`[Cleanup] Removed ${this.changes} expired join token(s).`);
+    }
+  );
+  db.run(
+    `DELETE FROM chat_messages WHERE sent_at < datetime('now', '-90 days')`,
+    [], function(err) {
+      if (!err && this.changes > 0)
+        console.log(`[Cleanup] Removed ${this.changes} old chat message(s).`);
+    }
+  );
+}, 24 * 60 * 60 * 1000).unref();
+
 io.on('connection', (socket) => {
   console.log('A user connected: ' + socket.id);
 

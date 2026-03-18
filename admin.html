@@ -886,6 +886,7 @@
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
                 <button onclick="printConsentRecord()" title="Print" style="background:rgba(20,184,166,.1);border:1px solid rgba(20,184,166,.3);color:var(--teal);cursor:pointer;padding:6px 12px;border-radius:8px;font-size:12px;gap:5px;display:flex;align-items:center;"><i class="fas fa-print"></i> Print</button>
+                <button onclick="downloadConsentPdf()" title="Download PDF" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;cursor:pointer;padding:6px 12px;border-radius:8px;font-size:12px;gap:5px;display:flex;align-items:center;"><i class="fas fa-file-pdf"></i> PDF</button>
                 <button onclick="closeConsentModal()" style="background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text-2);cursor:pointer;font-size:1rem;padding:6px 9px;border-radius:8px;line-height:1;"><i class="fas fa-times"></i></button>
             </div>
         </div>
@@ -1369,7 +1370,7 @@ Do not share this link with patients — send them the Patient Link instead.`;
                                 <div class="item-title">${m.room_name}${statusBadge}</div>
                                 <div class="item-meta">${fmtDate(m.created_at)}${expiryStr ? ' &nbsp;·&nbsp; ' + expiryStr : ''}${durStr ? ' &nbsp;·&nbsp; ' + durStr : ''}</div>
                             </div>
-                            <div style="display:flex;gap:8px;flex-shrink:0;">
+                            <div class="meeting-item-actions">
                                 <button class="join-host-btn" onclick="openInviteModal('${m.room_name}', '${m.password || ''}')" title="Generate patient consent link"><i class="fas fa-user-plus"></i></button>
                                 <button class="join-host-btn" onclick="copyRoomLink('${m.room_name}', '${m.password || ''}')" title="Copy patient link"><i class="fas fa-copy"></i></button>
                                 <a href="/host/${encodeURIComponent(m.room_name)}" target="_blank" class="join-host-btn primary" title="Join as Host"><i class="fas fa-arrow-right-to-bracket"></i> Join as Host</a>
@@ -1473,6 +1474,7 @@ Do not share this link with patients — send them the Patient Link instead.`;
                     <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
                         <img src="${c.signature}" alt="Signature" class="signature-thumb" style="cursor:pointer;" onclick="viewConsent('${data}')" title="Click to view full consent" />
                         <button onclick="viewConsent('${data}')" style="padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text-2);cursor:pointer;font-size:12px;gap:5px;display:flex;align-items:center;white-space:nowrap;"><i class="fas fa-eye"></i> View</button>
+                        <button onclick="downloadConsentRowPdf('${data}')" title="Download PDF" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.08);color:#ef4444;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:4px;white-space:nowrap;"><i class="fas fa-file-pdf"></i></button>
                     </div>
                 </div>`;
         }).join('');
@@ -1506,6 +1508,99 @@ Do not share this link with patients — send them the Patient Link instead.`;
     function closeConsentModal() {
         document.getElementById('consent-modal').style.display = 'none';
         document.body.style.overflow = '';
+    }
+
+    function loadHtml2Pdf() {
+        return new Promise((resolve, reject) => {
+            if (window.html2pdf) { resolve(); return; }
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+            s.onload = resolve; s.onerror = reject;
+            document.head.appendChild(s);
+        });
+    }
+
+    function _buildConsentPdfHtml(name, email, signed, room, submitted, sigSrc) {
+        const logoHtml = siteLogoUrl
+            ? `<img src="${siteLogoUrl}" alt="logo" style="height:60px;width:auto;object-fit:contain;" onerror="this.style.display='none'" />`
+            : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style="height:52px;width:auto;"><circle cx="24" cy="24" r="22" stroke="#0d9488" stroke-width="2.5" fill="none"/><path d="M6 24h7l3-8 6 16 5-18 4 10h11" stroke="#0d9488" stroke-width="2.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        return `<div style="background:#fff;color:#111;padding:36px 44px;font-family:Arial,sans-serif;font-size:13px;max-width:700px;">
+            <div style="display:flex;align-items:center;gap:18px;padding-bottom:16px;border-bottom:2.5px solid #0d9488;margin-bottom:22px;">
+                <div style="flex-shrink:0;">${logoHtml}</div>
+                <div>
+                    <div style="font-size:19px;font-weight:700;color:#111;margin-bottom:2px;">${siteCompanyName || 'TeleHealth Connect'}</div>
+                    <div style="font-size:12px;color:#666;">Telehealth Consent Record</div>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;">
+                <div style="background:#f9fafb;border:1px solid #e2e8f0;border-radius:6px;padding:12px;">
+                    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px;">Patient Name</div>
+                    <div style="font-weight:700;font-size:15px;">${name}</div>
+                </div>
+                <div style="background:#f9fafb;border:1px solid #e2e8f0;border-radius:6px;padding:12px;">
+                    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px;">Date Signed</div>
+                    <div style="font-weight:600;font-size:14px;">${signed}</div>
+                </div>
+                ${email && email !== '—' ? `<div style="background:#f9fafb;border:1px solid #e2e8f0;border-radius:6px;padding:12px;"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px;">Email</div><div style="font-size:13px;">${email}</div></div>` : ''}
+                ${room && room !== '—' ? `<div style="background:#f9fafb;border:1px solid #e2e8f0;border-radius:6px;padding:12px;"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px;">Session / Room</div><div style="font-size:13px;">${room}</div></div>` : ''}
+            </div>
+            <div style="margin-bottom:18px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;margin-bottom:8px;">Consent Agreement</div>
+                <div style="background:#f9fafb;border:1px solid #e2e8f0;border-radius:6px;padding:14px;font-size:12px;color:#333;line-height:1.75;">
+                    By signing, the patient confirmed that they:<br>
+                    <ul style="margin:8px 0 0 16px;padding:0;display:flex;flex-direction:column;gap:4px;">
+                        <li>Consent to receive telehealth medical services via video consultation</li>
+                        <li>Understand that telehealth involves electronic communication of their medical information</li>
+                        <li>Have the right to withdraw consent at any time</li>
+                        <li>Acknowledge the limitations and potential risks of telehealth services</li>
+                        <li>Agree to the collection and storage of information for medical record purposes</li>
+                    </ul>
+                </div>
+            </div>
+            <div style="margin-bottom:18px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;margin-bottom:8px;">Digital Signature</div>
+                <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:6px;padding:12px;text-align:center;">
+                    <img src="${sigSrc}" alt="Patient Signature" style="max-width:300px;max-height:110px;object-fit:contain;" />
+                </div>
+            </div>
+            <div style="padding-top:14px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;text-align:center;">
+                ${submitted} &nbsp;·&nbsp; Secured in accordance with applicable privacy regulations
+            </div>
+        </div>`;
+    }
+
+    async function downloadConsentPdf() {
+        const name      = document.getElementById('cm-name').textContent;
+        const email     = document.getElementById('cm-email').textContent;
+        const signed    = document.getElementById('cm-signed').textContent;
+        const room      = document.getElementById('cm-room').textContent;
+        const submitted = document.getElementById('cm-submitted').textContent;
+        const sigSrc    = document.getElementById('cm-signature').src;
+        await _generateConsentPdf(name, email, signed, room, submitted, sigSrc);
+    }
+
+    async function downloadConsentRowPdf(dataEncoded) {
+        const c = JSON.parse(decodeURIComponent(dataEncoded));
+        const email = c.email && c.email.trim() ? c.email : '—';
+        const room  = c.room_name && c.room_name.trim() ? c.room_name : '—';
+        const submitted = c.created_at ? 'Submitted: ' + fmtDate(c.created_at) : '';
+        await _generateConsentPdf(c.first_name + ' ' + c.last_name, email, c.signed_date || '—', room, submitted, c.signature);
+    }
+
+    async function _generateConsentPdf(name, email, signed, room, submitted, sigSrc) {
+        try { await loadHtml2Pdf(); } catch(e) { alert('Could not load PDF library. Please use Print instead.'); return; }
+        const tempDiv = document.createElement('div');
+        tempDiv.style.cssText = 'position:absolute;left:-9999px;top:0;';
+        tempDiv.innerHTML = _buildConsentPdfHtml(name, email, signed, room, submitted, sigSrc);
+        document.body.appendChild(tempDiv);
+        await html2pdf().set({
+            margin: [10, 10, 10, 10],
+            filename: 'consent-' + (name || 'patient').replace(/\s+/g, '-').toLowerCase() + '.pdf',
+            image: { type: 'jpeg', quality: 0.96 },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        }).from(tempDiv).save();
+        document.body.removeChild(tempDiv);
     }
 
     function printConsentRecord() {

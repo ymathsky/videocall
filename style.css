@@ -2049,3 +2049,25 @@ select.form-select:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(
     .ctrl-btn { width: 44px; height: 44px; font-size: 0.95rem; }
     .ctrl-btn.end-call { padding: 0 16px; font-size: 0.8rem; }
 }
+
+/* ══════════════════════════════════════════════════════
+   ADMIN MEETING ITEM ACTIONS — responsive action bar
+══════════════════════════════════════════════════════ */
+.meeting-item-actions {
+    display: flex; gap: 8px; flex-shrink: 0; align-items: center;
+}
+
+/* Compact to icon-only on small phones */
+@media (max-width: 520px) {
+    .meeting-item-actions { flex-wrap: wrap; justify-content: flex-end; flex-shrink: 1; gap: 5px; }
+    .meeting-item-actions .join-host-btn { font-size: 0; gap: 0; padding: 7px 9px; min-width: 0; }
+    .meeting-item-actions .join-host-btn i { font-size: 13px; }
+    .panel-card { padding: 14px 12px; }
+    .data-list { max-height: none; }
+    /* Consent list: hide signature thumbnail to save space */
+    .signature-thumb { display: none; }
+    /* Admin topbar: tighter spacing */
+    .admin-topbar { margin-bottom: 14px; padding-bottom: 12px; }
+    /* Filter buttons: smaller */
+    .meeting-filter-btn { padding: 3px 9px; font-size: 11px; }
+}

@@ -367,6 +367,43 @@
             </div>
         </div>
         </form>
+
+        <!-- ─── Submission Success State (shown after standalone submit) ─── -->
+        <div id="consent-success" style="display:none;">
+            <div style="text-align:center;padding:32px 24px 16px;">
+                <div style="width:66px;height:66px;border-radius:50%;background:rgba(16,185,129,.15);border:2px solid rgba(16,185,129,.35);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                    <i class="fas fa-check" style="font-size:28px;color:#10b981;"></i>
+                </div>
+                <h2 style="font-size:1.3rem;margin-bottom:6px;">Consent Submitted!</h2>
+                <p style="font-size:13px;color:var(--text-2);">Your consent has been recorded. You may download a copy for your records.</p>
+            </div>
+            <!-- Receipt preview -->
+            <div id="consent-receipt-preview" style="margin:0 20px 8px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--r-md);padding:16px 18px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);">
+                    <div style="font-weight:700;font-size:14px;color:var(--text);">Consent Receipt</div>
+                    <div id="receipt-ts" style="font-size:11px;color:var(--text-3);"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+                    <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:3px;">Patient Name</div><div id="receipt-name" style="font-weight:600;font-size:14px;color:var(--text);"></div></div>
+                    <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:3px;">Date Signed</div><div id="receipt-signed" style="font-size:13px;color:var(--text-2);"></div></div>
+                </div>
+                <div>
+                    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:5px;">Digital Signature</div>
+                    <div style="background:#fff;border-radius:6px;padding:8px;text-align:center;">
+                        <img id="receipt-sig" src="" alt="Signature" style="max-width:100%;max-height:90px;object-fit:contain;" />
+                    </div>
+                </div>
+            </div>
+            <div style="padding:12px 20px 24px;display:flex;flex-direction:column;gap:10px;">
+                <button onclick="downloadConsentPdf()" class="btn-submit-consent" style="width:100%;justify-content:center;display:flex;align-items:center;gap:8px;">
+                    <i class="fas fa-file-pdf"></i> Download PDF
+                </button>
+                <button onclick="resetConsentForm()" style="width:100%;background:none;border:1px solid var(--border);color:var(--text-2);padding:11px;border-radius:var(--r-md);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;font-family:inherit;">
+                    <i class="fas fa-rotate-right"></i> Submit Another
+                </button>
+            </div>
+        </div>
+
     </div>
 
 </div>
@@ -532,14 +569,31 @@
                     showToast('Consent submitted! Joining your consultation…');
                     setTimeout(() => { window.location.href = targetUrl; }, 1800);
                 } else {
-                    showToast('Consent submitted successfully. Thank you!');
-                    e.target.reset();
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    document.getElementById('date').valueAsDate = new Date();
-                    hasSig = false;
-                    if(hint) hint.style.opacity = '1';
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = '<i class="fas fa-check-circle"></i> <span id="submit-label">I Consent &amp; Submit</span>';
+                    // Standalone submission — show success card with PDF download option
+                    const firstName = document.getElementById('firstName').value.trim();
+                    const lastName  = document.getElementById('lastName').value.trim();
+                    const signedDate = document.getElementById('date').value;
+                    const sigDataUrl = canvas.toDataURL();
+
+                    document.getElementById('receipt-name').textContent   = firstName + ' ' + lastName;
+                    document.getElementById('receipt-signed').textContent  = signedDate;
+                    document.getElementById('receipt-sig').src             = sigDataUrl;
+                    document.getElementById('receipt-ts').textContent      = 'Saved ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                    // Store for PDF generation
+                    window._consentPdfData = {
+                        name: firstName + ' ' + lastName,
+                        signed: signedDate,
+                        sig: sigDataUrl,
+                        savedAt: new Date().toLocaleString()
+                    };
+
+                    // Hide form, show success
+                    document.getElementById('consentForm').style.display = 'none';
+                    document.querySelector('.cf-submit-strip').style.display = 'none';
+                    document.querySelector('.meeting-notice') && (document.getElementById('meeting-notice').style.display = 'none');
+                    document.querySelector('.cf-steps').style.display = 'none';
+                    document.getElementById('consent-success').style.display = 'block';
                 }
             } else {
                 throw new Error('Submission failed. Please try again.');
@@ -571,6 +625,95 @@
             document.title = 'Patient Consent Form — ' + s.company_name;
         }
     }).catch(() => {});
+
+    /* ─── PDF download ─── */
+    function loadHtml2Pdf() {
+        return new Promise((resolve, reject) => {
+            if (window.html2pdf) { resolve(); return; }
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+            s.onload = resolve; s.onerror = reject;
+            document.head.appendChild(s);
+        });
+    }
+
+    async function downloadConsentPdf() {
+        const d = window._consentPdfData || {};
+        try { await loadHtml2Pdf(); } catch(e) { window.print(); return; }
+
+        const company = document.getElementById('consent-brand-name')
+            ? document.getElementById('consent-brand-name').textContent : 'TeleHealth Connect';
+
+        const tempDiv = document.createElement('div');
+        tempDiv.style.cssText = 'position:absolute;left:-9999px;top:0;background:#fff;';
+        tempDiv.innerHTML = `
+        <div style="background:#fff;color:#111;padding:36px 44px;font-family:Arial,sans-serif;font-size:13px;max-width:680px;">
+            <div style="padding-bottom:16px;border-bottom:2.5px solid #0d9488;margin-bottom:22px;">
+                <div style="font-size:20px;font-weight:700;color:#111;margin-bottom:2px;">${company}</div>
+                <div style="font-size:12px;color:#666;">Telehealth Consent Record</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;">
+                <div style="background:#f9fafb;border:1px solid #e2e8f0;border-radius:6px;padding:12px;">
+                    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px;">Patient Name</div>
+                    <div style="font-weight:700;font-size:15px;">${d.name || '—'}</div>
+                </div>
+                <div style="background:#f9fafb;border:1px solid #e2e8f0;border-radius:6px;padding:12px;">
+                    <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:4px;">Date Signed</div>
+                    <div style="font-weight:600;font-size:14px;">${d.signed || '—'}</div>
+                </div>
+            </div>
+            <div style="margin-bottom:18px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;margin-bottom:8px;">Consent Agreement</div>
+                <div style="background:#f9fafb;border:1px solid #e2e8f0;border-radius:6px;padding:14px;font-size:12px;color:#333;line-height:1.75;">
+                    I voluntarily consent to receive telehealth healthcare services and acknowledge the following:<br>
+                    <ul style="margin:8px 0 0 16px;padding:0;display:flex;flex-direction:column;gap:4px;">
+                        <li>Telehealth involves electronic communication of medical information via video</li>
+                        <li>I understand the benefits, limitations, and potential risks of telehealth</li>
+                        <li>I have the right to refuse or withdraw consent at any time</li>
+                        <li>Reasonable efforts will be made to protect the privacy of my information</li>
+                    </ul>
+                </div>
+            </div>
+            <div style="margin-bottom:18px;">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555;margin-bottom:8px;">Digital Signature</div>
+                <div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:6px;padding:12px;text-align:center;">
+                    <img src="${d.sig || ''}" alt="Signature" style="max-width:300px;max-height:110px;object-fit:contain;" />
+                </div>
+            </div>
+            <div style="padding-top:14px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;text-align:center;">
+                Saved: ${d.savedAt || ''} &nbsp;·&nbsp; Secured in accordance with applicable privacy regulations
+            </div>
+        </div>`;
+        document.body.appendChild(tempDiv);
+        await html2pdf().set({
+            margin: [10, 10, 10, 10],
+            filename: 'telehealth-consent-' + (d.name || 'patient').replace(/\s+/g, '-').toLowerCase() + '.pdf',
+            image: { type: 'jpeg', quality: 0.96 },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        }).from(tempDiv).save();
+        document.body.removeChild(tempDiv);
+    }
+
+    function resetConsentForm() {
+        window._consentPdfData = null;
+        document.getElementById('consent-success').style.display = 'none';
+        document.getElementById('consentForm').style.display = '';
+        document.querySelector('.cf-submit-strip').style.display = '';
+        document.querySelector('.cf-steps').style.display = '';
+        document.getElementById('consentForm').reset();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        document.getElementById('date').valueAsDate = new Date();
+        hasSig = false;
+        if(hint) hint.style.opacity = '1';
+        const submitBtn = document.getElementById('submit-btn');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-check-circle"></i> <span>I Consent &amp; Submit</span>';
+            submitBtn.style.background = '';
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 </script>
 
 </body>
